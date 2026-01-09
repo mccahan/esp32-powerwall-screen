@@ -22,7 +22,6 @@
 #include "mqtt_client.h"
 #include "cJSON.h"
 #include "lvgl.h"
-#include "esp_wifi_prov.h"
 #include "wifi_provisioning/manager.h"
 #include "wifi_provisioning/scheme_softap.h"
 
