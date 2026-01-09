@@ -371,20 +371,62 @@ void updateUI() {
     lv_label_set_text(home_power_label, buf);
     
     // Update flow lines based on power flows
+    int center_x = SCREEN_WIDTH / 2;
+    int center_y = SCREEN_HEIGHT / 2;
+    int radius = 140;
+    int comp_size = 80;
+    
+    // Component center positions
+    int grid_x = center_x - radius;
+    int grid_y = center_y;
+    int solar_x = center_x;
+    int solar_y = center_y - radius;
+    int battery_x = center_x;
+    int battery_y = center_y + radius;
+    int home_x = center_x + radius;
+    int home_y = center_y;
+    
     // Grid to Home (importing from grid)
-    bool grid_to_home = powerData.grid_power > 50;
+    if (powerData.grid_power > 50) {
+        drawFlowLine(grid_to_home_line, grid_x + comp_size/2, grid_y, home_x - comp_size/2, home_y, lv_color_hex(0xFFFFFF), true);
+    } else {
+        lv_obj_add_flag(grid_to_home_line, LV_OBJ_FLAG_HIDDEN);
+    }
     
     // Solar to Home
-    bool solar_to_home = powerData.solar_power > 50;
+    if (powerData.solar_power > 50 && powerData.home_power > 0) {
+        drawFlowLine(solar_to_home_line, solar_x + comp_size/3, solar_y + comp_size/2, home_x - comp_size/3, home_y - comp_size/3, lv_color_hex(0xFFFF00), true);
+    } else {
+        lv_obj_add_flag(solar_to_home_line, LV_OBJ_FLAG_HIDDEN);
+    }
     
     // Battery to Home (battery discharging)
-    bool battery_to_home = powerData.battery_power > 50;
-    
-    // Solar/Battery to Grid (exporting to grid)
-    bool to_grid = powerData.grid_power < -50;
+    if (powerData.battery_power > 50) {
+        drawFlowLine(battery_to_home_line, battery_x + comp_size/3, battery_y - comp_size/2, home_x - comp_size/3, home_y + comp_size/3, lv_color_hex(0x00FF00), true);
+    } else {
+        lv_obj_add_flag(battery_to_home_line, LV_OBJ_FLAG_HIDDEN);
+    }
     
     // Solar to Battery (battery charging from solar)
-    bool solar_to_battery = powerData.battery_power < -50;
+    if (powerData.battery_power < -50 && powerData.solar_power > 0) {
+        drawFlowLine(solar_to_battery_line, solar_x, solar_y + comp_size/2, battery_x, battery_y - comp_size/2, lv_color_hex(0xFFFF00), true);
+    } else {
+        lv_obj_add_flag(solar_to_battery_line, LV_OBJ_FLAG_HIDDEN);
+    }
+    
+    // Solar to Grid (exporting to grid)
+    if (powerData.grid_power < -50 && powerData.solar_power > 0) {
+        drawFlowLine(solar_to_grid_line, solar_x - comp_size/3, solar_y + comp_size/2, grid_x + comp_size/3, grid_y - comp_size/3, lv_color_hex(0xFFFF00), true);
+    } else {
+        lv_obj_add_flag(solar_to_grid_line, LV_OBJ_FLAG_HIDDEN);
+    }
+    
+    // Battery to Grid (battery discharging to grid)
+    if (powerData.grid_power < -50 && powerData.battery_power > 0) {
+        drawFlowLine(battery_to_grid_line, battery_x - comp_size/3, battery_y - comp_size/2, grid_x + comp_size/3, grid_y + comp_size/3, lv_color_hex(0x00FF00), true);
+    } else {
+        lv_obj_add_flag(battery_to_grid_line, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 void loadConfig() {
