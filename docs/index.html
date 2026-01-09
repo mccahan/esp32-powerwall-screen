@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Powerwall Display - Web Installer</title>
+    <script type="module" src="https://unpkg.com/esp-web-tools@9.4.3/dist/web/install-button.js?module"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+        }
+        .install-section {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        esp-web-install-button {
+            margin: 20px 0;
+        }
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .warning-box {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        ul {
+            line-height: 1.8;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .feature {
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔋 ESP32 Powerwall Display</h1>
+        <p>A beautiful energy flow visualization for Tesla Powerwall systems using an ESP32-S3 with a 480x480 display.</p>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <strong>Real-time Display</strong>
+                <p>Live power flow visualization</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">☀️</div>
+                <strong>Solar Tracking</strong>
+                <p>Monitor solar generation</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔋</div>
+                <strong>Battery Status</strong>
+                <p>Battery level and flow</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🏠</div>
+                <strong>Home Usage</strong>
+                <p>Track home consumption</p>
+            </div>
+        </div>
+
+        <h2>📥 Installation</h2>
+        
+        <div class="warning-box">
+            <strong>⚠️ Important:</strong> This installer requires a Chrome, Edge, or Opera browser. Safari and Firefox are not supported.
+        </div>
+
+        <div class="install-section">
+            <h3>Install Firmware via Web Browser</h3>
+            <p>Connect your ESP32-S3 device via USB and click the button below:</p>
+            <esp-web-install-button
+                manifest="./manifest.json"
+            >
+                <button slot="activate" style="padding: 15px 30px; font-size: 16px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    ⚡ Install Powerwall Display
+                </button>
+            </esp-web-install-button>
+            <p style="color: #666; margin-top: 10px;">Click the button, select your device's COM port, and the firmware will be installed automatically.</p>
+        </div>
+
+        <h2>🔧 Hardware Requirements</h2>
+        <ul>
+            <li><strong>ESP32-S3</strong> with 16MB Flash and PSRAM (e.g., Guition ESP32-S3-4848S040)</li>
+            <li><strong>480x480 ST7701S Display</strong> (directly connected via RGB interface)</li>
+            <li><strong>GT911 Touchscreen</strong> (I2C connected)</li>
+            <li><strong>USB Cable</strong> for programming and power</li>
+        </ul>
+
+        <h2>⚙️ Configuration</h2>
+        <div class="info-box">
+            <strong>First Boot Setup:</strong>
+            <ol style="text-align: left; margin-left: 20px;">
+                <li>After flashing, the device will create a WiFi access point named <code>Powerwall-Display</code></li>
+                <li>Connect to this access point with password <code>configure</code></li>
+                <li>A captive portal will open automatically (or navigate to 192.168.4.1)</li>
+                <li>Configure your WiFi credentials and MQTT server settings:
+                    <ul>
+                        <li><strong>MQTT Server:</strong> Your MQTT broker IP or hostname</li>
+                        <li><strong>MQTT Port:</strong> Usually 1883</li>
+                        <li><strong>MQTT User/Password:</strong> Your broker credentials (if required)</li>
+                        <li><strong>MQTT Topic Prefix:</strong> The prefix for your topics (e.g., "powerwall" or "pypowerwall")</li>
+                    </ul>
+                </li>
+                <li>Save and the device will connect to your WiFi and MQTT broker</li>
+            </ol>
+        </div>
+
+        <h2>📡 MQTT Topics</h2>
+        <p>The display subscribes to the following MQTT topics (where <code>{prefix}</code> is your configured prefix):</p>
+        <ul>
+            <li><code>{prefix}/site/instant_power</code> - Grid power in watts (positive = importing, negative = exporting)</li>
+            <li><code>{prefix}/solar/instant_power</code> - Solar generation in watts</li>
+            <li><code>{prefix}/battery/instant_power</code> - Battery power in watts (positive = discharging, negative = charging)</li>
+            <li><code>{prefix}/battery/level</code> - Battery state of charge as percentage (e.g., 50.4)</li>
+            <li><code>{prefix}/load/instant_power</code> - Home consumption in watts</li>
+        </ul>
+
+        <h2>🎨 Display Layout</h2>
+        <ul>
+            <li><strong>Grid</strong> - Left side (White)</li>
+            <li><strong>Solar</strong> - Top (Yellow)</li>
+            <li><strong>Battery</strong> - Bottom (Green)</li>
+            <li><strong>Home</strong> - Right side (Blue)</li>
+        </ul>
+        <p>Energy flow lines animate between components based on real-time power data.</p>
+
+        <h2>🔄 Reconfiguration</h2>
+        <p>To reconfigure WiFi or MQTT settings, you can:</p>
+        <ul>
+            <li>Access the configuration portal by connecting to the <code>Powerwall-Display</code> AP again if connection fails</li>
+            <li>The device will automatically enter configuration mode if it cannot connect to the saved WiFi network</li>
+        </ul>
+
+        <h2>📚 Resources</h2>
+        <ul>
+            <li><a href="https://github.com/mccahan/esp32-powerwall-screen">GitHub Repository</a></li>
+            <li><a href="https://github.com/jasonacox/pypowerwall">PyPowerwall Project</a> - For MQTT data source</li>
+        </ul>
+
+        <h2>🐛 Troubleshooting</h2>
+        <div class="info-box">
+            <strong>Device not appearing in COM port list?</strong>
+            <ul style="text-align: left; margin-left: 20px;">
+                <li>Make sure you're using a data-capable USB cable (not power-only)</li>
+                <li>Install CH340 or CP2102 USB drivers if needed</li>
+                <li>Try a different USB port</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <strong>Display not working?</strong>
+            <ul style="text-align: left; margin-left: 20px;">
+                <li>Verify you have the correct hardware (ESP32-S3 with ST7701S display)</li>
+                <li>Check that backlight is connected and powered</li>
+                <li>Ensure display ribbon cable is properly seated</li>
+            </ul>
+        </div>
+
+        <footer style="margin-top: 50px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #666;">
+            <p>ESP32 Powerwall Display | Open Source Project</p>
+        </footer>
+    </div>
+</body>
+</html>
