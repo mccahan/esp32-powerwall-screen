@@ -523,26 +523,6 @@ void setupWiFiManager() {
     }
 }
 
-void setupWiFi() {
-    Serial.print("Connecting to WiFi");
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-        delay(500);
-        Serial.print(".");
-        attempts++;
-    }
-    
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\nWiFi connected");
-        Serial.print("IP address: ");
-        Serial.println(WiFi.localIP());
-    } else {
-        Serial.println("\nWiFi connection failed!");
-    }
-}
-
 void setupMQTT() {
     if (mqtt_server.length() > 0) {
         int port = mqtt_port.toInt();
@@ -619,7 +599,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void drawFlowLine(lv_obj_t* line, int x1, int y1, int x2, int y2, lv_color_t color, bool active) {
-    static lv_point_t points[2];
+    lv_point_t points[2];
     points[0].x = x1;
     points[0].y = y1;
     points[1].x = x2;

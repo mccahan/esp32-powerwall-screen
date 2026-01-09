@@ -25,8 +25,7 @@
 #define SCREEN_HEIGHT 480
 
 // Hardware Pins - Based on Guition ESP32-S3-4848S040
-// Display ST7701S
-#define TFT_CS 39
+// Display ST7701S (RGB interface)
 #define TFT_DE 18
 #define TFT_VSYNC 17
 #define TFT_HSYNC 16
