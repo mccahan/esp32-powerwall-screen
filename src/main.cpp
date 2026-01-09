@@ -102,11 +102,10 @@ void onImprovWiFiConnectedCb(const char *ssid, const char *password) {
     Serial.printf("ImprovWiFi: Connecting to %s...\n", ssid);
     WiFi.begin(ssid, password);
     
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-        delay(500);
+    unsigned long startTime = millis();
+    while (WiFi.status() != WL_CONNECTED && (millis() - startTime < WIFI_CONNECT_TIMEOUT_MS)) {
+        delay(WIFI_CONNECT_RETRY_DELAY_MS);
         Serial.print(".");
-        attempts++;
     }
     
     if (WiFi.status() == WL_CONNECTED) {
@@ -168,12 +167,12 @@ void setup() {
     improvSerial.onImprovError(onImprovWiFiErrorCb);
     improvSerial.onImprovConnected(onImprovWiFiConnectedCb);
     
-    // Check for ImprovWiFi provisioning via serial (wait up to 5 seconds)
+    // Check for ImprovWiFi provisioning via serial
     Serial.println("Checking for ImprovWiFi provisioning...");
     unsigned long improvStart = millis();
     bool improvProvisioned = false;
     
-    while (millis() - improvStart < 5000) {
+    while (millis() - improvStart < IMPROV_PROVISIONING_TIMEOUT_MS) {
         improvSerial.handleSerial();
         if (WiFi.status() == WL_CONNECTED) {
             improvProvisioned = true;

@@ -12,6 +12,11 @@
 // Default MQTT Configuration (can be overridden via captive portal)
 #define DEFAULT_MQTT_PREFIX "powerwall"
 
+// Connection timeout settings
+#define WIFI_CONNECT_TIMEOUT_MS 15000  // 15 seconds
+#define IMPROV_PROVISIONING_TIMEOUT_MS 5000  // 5 seconds
+#define WIFI_CONNECT_RETRY_DELAY_MS 500  // Delay between connection attempts
+
 // MQTT Topics for power data (prefix will be configured dynamically)
 // Topics will be: {prefix}/site/instant_power, etc.
 #define TOPIC_SITE_POWER "/site/instant_power"
