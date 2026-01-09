@@ -8,6 +8,12 @@
 #include <Arduino_GFX_Library.h>
 #include "config.h"
 
+// ImprovWiFi support
+#define IMPROV_SERIAL_VERSION 1
+#include <ImprovWiFiLibrary.h>
+
+ImprovWiFi improvSerial(&Serial);
+
 // Configuration storage
 Preferences preferences;
 String mqtt_server = "";
@@ -84,6 +90,46 @@ void setupMQTT();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 bool reconnectMQTT();
 void drawFlowLine(lv_obj_t* line, int x1, int y1, int x2, int y2, lv_color_t color, bool active);
+void onImprovWiFiErrorCb(ImprovTypes::Error err);
+void onImprovWiFiConnectedCb(const char *ssid, const char *password);
+
+// ImprovWiFi callbacks
+void onImprovWiFiErrorCb(ImprovTypes::Error err) {
+    Serial.printf("ImprovWiFi Error: %d\n", err);
+}
+
+void onImprovWiFiConnectedCb(const char *ssid, const char *password) {
+    Serial.printf("ImprovWiFi: Connecting to %s...\n", ssid);
+    WiFi.begin(ssid, password);
+    
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+        delay(500);
+        Serial.print(".");
+        attempts++;
+    }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nImprovWiFi: Connected!");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+        
+        // Save WiFi credentials to preferences
+        preferences.begin("powerwall", false);
+        preferences.putString("wifi_ssid", ssid);
+        preferences.putString("wifi_pass", password);
+        preferences.end();
+        
+        improvSerial.setDeviceInfo(ImprovTypes::ChipFamily::CF_ESP32_S3, 
+                                   "Powerwall Display", 
+                                   "1.0.0", 
+                                   "ESP32-S3 Powerwall",
+                                   "http://" + WiFi.localIP().toString());
+    } else {
+        Serial.println("\nImprovWiFi: Connection failed!");
+        improvSerial.setError(ImprovTypes::Error::ERROR_UNABLE_TO_CONNECT);
+    }
+}
 
 // Display flushing
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
@@ -113,14 +159,41 @@ void setup() {
     // Create UI
     createUI();
     
+    // Initialize ImprovWiFi
+    improvSerial.setDeviceInfo(ImprovTypes::ChipFamily::CF_ESP32_S3, 
+                               "Powerwall Display", 
+                               "1.0.0", 
+                               "ESP32-S3 Powerwall",
+                               "");
+    improvSerial.onImprovError(onImprovWiFiErrorCb);
+    improvSerial.onImprovConnected(onImprovWiFiConnectedCb);
+    
+    // Check for ImprovWiFi provisioning via serial (wait up to 5 seconds)
+    Serial.println("Checking for ImprovWiFi provisioning...");
+    unsigned long improvStart = millis();
+    bool improvProvisioned = false;
+    
+    while (millis() - improvStart < 5000) {
+        improvSerial.handleSerial();
+        if (WiFi.status() == WL_CONNECTED) {
+            improvProvisioned = true;
+            Serial.println("ImprovWiFi provisioning successful!");
+            break;
+        }
+        delay(10);
+    }
+    
     // Load saved configuration
     loadConfig();
     
     // Build MQTT topics from prefix
     buildMqttTopics();
     
-    // Setup WiFi with captive portal
-    setupWiFiManager();
+    // If not provisioned via ImprovWiFi, use WiFiManager
+    if (!improvProvisioned) {
+        // Setup WiFi with captive portal
+        setupWiFiManager();
+    }
     
     // Setup MQTT
     setupMQTT();
@@ -129,6 +202,9 @@ void setup() {
 }
 
 void loop() {
+    // Handle ImprovWiFi serial commands
+    improvSerial.handleSerial();
+    
     // Handle MQTT connection
     if (!mqttClient.connected()) {
         unsigned long now = millis();

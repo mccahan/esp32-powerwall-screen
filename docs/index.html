@@ -103,6 +103,11 @@
                 <strong>Home Usage</strong>
                 <p>Track home consumption</p>
             </div>
+            <div class="feature">
+                <div class="feature-icon">📡</div>
+                <strong>ImprovWiFi</strong>
+                <p>Easy WiFi setup at flash time</p>
+            </div>
         </div>
 
         <h2>📥 Installation</h2>
@@ -134,9 +139,17 @@
 
         <h2>⚙️ Configuration</h2>
         <div class="info-box">
-            <strong>First Boot Setup:</strong>
+            <strong>WiFi Setup - Two Options:</strong>
+            <p><strong>Option 1: ImprovWiFi (Recommended)</strong></p>
             <ol style="text-align: left; margin-left: 20px;">
-                <li>After flashing, the device will create a WiFi access point named <code>Powerwall-Display</code></li>
+                <li>After flashing, the web installer will prompt you to configure WiFi credentials</li>
+                <li>Enter your WiFi SSID and password directly in the browser</li>
+                <li>The device will connect automatically - no manual AP setup needed!</li>
+                <li>Configure MQTT settings via the captive portal or web interface</li>
+            </ol>
+            <p><strong>Option 2: Captive Portal (Fallback)</strong></p>
+            <ol style="text-align: left; margin-left: 20px;">
+                <li>If ImprovWiFi wasn't used, the device creates a WiFi access point named <code>Powerwall-Display</code></li>
                 <li>Connect to this access point with password <code>configure</code></li>
                 <li>A captive portal will open automatically (or navigate to 192.168.4.1)</li>
                 <li>Configure your WiFi credentials and MQTT server settings:

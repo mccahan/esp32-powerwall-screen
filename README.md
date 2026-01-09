@@ -11,7 +11,8 @@ A real-time energy flow visualization display for Tesla Powerwall systems using 
 - 🎨 **Beautiful LVGL Interface** - Modern, responsive UI with animated power flows
 - ⚡ **Real-time Monitoring** - Live display of grid, solar, battery, and home power data
 - 📡 **MQTT Integration** - Subscribes to pypowerwall or similar MQTT data sources
-- 🔧 **Captive Portal Setup** - Easy WiFi and MQTT configuration via web interface
+- 📶 **ImprovWiFi Support** - Configure WiFi credentials at flash time via web browser
+- 🔧 **Captive Portal Setup** - Alternative WiFi and MQTT configuration via web interface
 - 🌐 **Web-based Firmware Installation** - Flash firmware directly from your browser
 - 🔋 **Battery Status** - Shows charge level and charging/discharging state
 - 🏠 **Energy Flow Visualization** - Dynamic lines showing power flow direction
@@ -47,7 +48,16 @@ The [Guition ESP32-S3-4848S040](https://github.com/agillis/esphome-modular-lvgl-
 
 ### First Time Setup
 
-1. After flashing, the device creates a WiFi access point: `Powerwall-Display`
+**Option 1: ImprovWiFi (Recommended)**
+
+1. After flashing via the web installer, you'll be prompted to configure WiFi
+2. Enter your WiFi SSID and password directly in the browser
+3. The device connects automatically - no manual AP setup needed!
+4. Configure MQTT settings via the captive portal on subsequent boot
+
+**Option 2: Captive Portal (Fallback)**
+
+1. If ImprovWiFi wasn't used, the device creates a WiFi access point: `Powerwall-Display`
 2. Connect to it using password: `configure`
 3. Configure your settings in the captive portal:
    - WiFi SSID and password
