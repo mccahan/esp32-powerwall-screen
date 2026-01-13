@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <esp_psram.h>
 #include <LovyanGFX.hpp>
+#include <improv.h>
 
 // Display configuration for Guition ESP32-S3-4848S040
 class LGFX : public lgfx::LGFX_Device
@@ -230,17 +231,25 @@ void setupLVGL() {
 }
 
 void setupImprovWiFi() {
-    // Improv WiFi setup
-    // This is a placeholder for Improv WiFi functionality
-    // The improv-wifi library will handle WiFi credential configuration
-    // via serial port when connected to ESP Web Tools
-    
+    // Configure WiFi mode
     WiFi.mode(WIFI_STA);
+    WiFi.begin();
+    
     Serial.println("WiFi mode set to STA");
     Serial.println("Improv WiFi ready for configuration");
+    Serial.println("Connect via ESP Web Tools to configure WiFi credentials");
     
-    // In a full implementation, this would use the improv-wifi library
-    // to listen for WiFi credentials via serial and configure WiFi accordingly
+    // Note: Full Improv WiFi protocol implementation would be added here
+    // The improv-wifi SDK provides the protocol for receiving WiFi credentials
+    // via serial communication from ESP Web Tools in the browser.
+    // This typically involves:
+    // 1. Advertising Improv service via serial
+    // 2. Listening for credential commands
+    // 3. Connecting to WiFi with provided credentials
+    // 4. Reporting connection status back to the browser
+    
+    // For initial setup, WiFi credentials can also be hardcoded or 
+    // configured via other means (e.g., WiFiManager, BLE, etc.)
 }
 
 void createHelloWorldUI() {
