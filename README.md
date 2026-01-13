@@ -88,20 +88,45 @@ pio device monitor
 
 ### Manual Flashing with esptool
 
-If PlatformIO upload fails, use esptool directly:
+If PlatformIO upload fails, use esptool directly.
+
+**Using PlatformIO's esptool (recommended):**
 
 ```bash
-esptool.py --baud 460800 write_flash \
+# Full flash with all partitions (replace /dev/cu.usbserial-10 with your port)
+~/.platformio/packages/tool-esptoolpy/esptool.py \
+  --chip esp32s3 \
+  --port /dev/cu.usbserial-10 \
+  --baud 921600 \
+  --before default_reset \
+  --after hard_reset \
+  write_flash -z --flash_mode dio --flash_freq 80m --flash_size 16MB \
+  0x0 .pio/build/esp32-s3-devkitc-1/bootloader.bin \
+  0x8000 .pio/build/esp32-s3-devkitc-1/partitions.bin \
+  0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
+  0x10000 .pio/build/esp32-s3-devkitc-1/firmware.bin
+```
+
+**Using system esptool (if installed via pip):**
+
+```bash
+esptool.py --chip esp32s3 --port /dev/cu.usbserial-10 --baud 921600 \
+  write_flash -z --flash_mode dio --flash_freq 80m --flash_size 16MB \
   0x0 .pio/build/esp32-s3-devkitc-1/bootloader.bin \
   0x8000 .pio/build/esp32-s3-devkitc-1/partitions.bin \
   0x10000 .pio/build/esp32-s3-devkitc-1/firmware.bin
 ```
 
-To fully erase the device first (recommended for clean install):
+**To fully erase the device first (recommended for clean install):**
 
 ```bash
-esptool.py erase_flash
+esptool.py --chip esp32s3 --port /dev/cu.usbserial-10 erase_flash
 ```
+
+**Find your serial port:**
+- macOS: `ls /dev/cu.usb*`
+- Linux: `ls /dev/ttyUSB*` or `ls /dev/ttyACM*`
+- Windows: Check Device Manager for COM port
 
 ### GitHub Actions
 
