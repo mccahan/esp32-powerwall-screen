@@ -268,6 +268,13 @@ void createMainDashboard() {
     lv_obj_clear_flag(main_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_scr_load(main_screen);
 
+    // ========== Layout Background Image (must be created FIRST so labels appear on top) ==========
+    img_layout = lv_img_create(main_screen);
+    lv_img_set_src(img_layout, &layout_img);
+    lv_obj_set_pos(img_layout, 0, 0);
+    lv_obj_set_size(img_layout, TFT_WIDTH, TFT_HEIGHT);
+    lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
+
     // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
     // Battery value - centered at bottom
     lbl_batt_val = lv_label_create(main_screen);
@@ -338,13 +345,6 @@ void createMainDashboard() {
     lv_obj_set_style_bg_color(bar_soc, lv_color_hex(COLOR_BAR_FILL), LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(bar_soc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(bar_soc, 2, LV_PART_INDICATOR);
-
-    // ========== Layout Background Image ==========
-    img_layout = lv_img_create(main_screen);
-    lv_img_set_src(img_layout, &layout_img);
-    lv_obj_set_pos(img_layout, 0, 0);
-    lv_obj_set_size(img_layout, TFT_WIDTH, TFT_HEIGHT);
-    lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
 
     // ========== Grid Offline Overlay ==========
     img_grid_offline = lv_img_create(main_screen);
