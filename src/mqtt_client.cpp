@@ -158,16 +158,30 @@ void PowerwallMQTTClient::onMqttDisconnect(AsyncMqttClientDisconnectReason reaso
 }
 
 void PowerwallMQTTClient::onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
+    // Limit message size to prevent stack overflow
+    const size_t MAX_MESSAGE_SIZE = 64;
+    if (len > MAX_MESSAGE_SIZE) {
+        Serial.printf("MQTT message too large (%d bytes), ignoring\n", len);
+        return;
+    }
+    
     // Convert payload to null-terminated string
-    char message[len + 1];
+    char message[MAX_MESSAGE_SIZE + 1];
     memcpy(message, payload, len);
     message[len] = '\0';
     
     String topicStr = String(topic);
     String prefix = config.topic_prefix;
     
-    // Parse the value
-    float value = atof(message);
+    // Parse the value with error checking
+    char* endptr;
+    float value = strtod(message, &endptr);
+    
+    // Check if conversion was successful
+    if (endptr == message || *endptr != '\0') {
+        Serial.printf("Failed to parse MQTT value: %s\n", message);
+        return;
+    }
     
     // Match topic and call appropriate callback
     if (topicStr == prefix + "solar/instant_power") {

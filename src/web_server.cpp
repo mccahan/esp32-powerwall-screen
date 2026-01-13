@@ -27,7 +27,13 @@ void PowerwallWebServer::setupRoutes() {
     // API endpoint to save MQTT configuration
     server.on("/api/mqtt", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
         [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-            StaticJsonDocument<512> doc;
+            // Validate content length
+            if (total > 1024) {
+                request->send(413, "application/json", "{\"error\":\"Payload too large\"}");
+                return;
+            }
+            
+            DynamicJsonDocument doc(1024);
             DeserializationError error = deserializeJson(doc, data, len);
             
             if (error) {
@@ -61,7 +67,8 @@ void PowerwallWebServer::setupRoutes() {
         doc["host"] = config.host;
         doc["port"] = config.port;
         doc["user"] = config.user;
-        doc["password"] = config.password;
+        // Don't expose password in GET response for security
+        doc["password"] = config.password.length() > 0 ? "********" : "";
         doc["prefix"] = config.topic_prefix;
         doc["connected"] = mqttClient.isConnected();
         
@@ -186,7 +193,7 @@ String PowerwallWebServer::getConfigPage() {
             </div>
             <div class="form-group">
                 <label for="password">MQTT Password:</label>
-                <input type="password" id="password" name="password" value=")rawliteral" + config.password + R"rawliteral(">
+                <input type="password" id="password" name="password" value=")rawliteral" + config.password + R"rawliteral(" placeholder="Leave blank to keep current">
             </div>
             <div class="form-group">
                 <label for="prefix">Topic Prefix:</label>
