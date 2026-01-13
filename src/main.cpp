@@ -3,7 +3,6 @@
 #include <WiFi.h>
 #include <esp_psram.h>
 #include <LovyanGFX.hpp>
-#include <improv.h>
 
 // Display configuration for Guition ESP32-S3-4848S040
 class LGFX : public lgfx::LGFX_Device
@@ -101,7 +100,9 @@ public:
             cfg.pin_sda = GPIO_NUM_19;
             cfg.pin_scl = GPIO_NUM_45;
             cfg.freq = 400000;
-            cfg.i2c_addr = 0x14;  // or 0x5D
+            // GT911 I2C address - 0x14 for most boards, 0x5D for some variants
+            // Hardware specific to guition-esp32-s3-4848s040
+            cfg.i2c_addr = 0x14;
             _touch_instance.config(cfg);
             _panel_instance.setTouch(&_touch_instance);
         }
