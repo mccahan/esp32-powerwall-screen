@@ -434,6 +434,18 @@ void updatePowerFlowAnimation() {
     const float FADE = 0.12f;
     const int DOT_R = 6;
     const uint32_t DEFAULT_FRAME_MS = 33;  // ~30 FPS
+    
+    // Animation speed parameters
+    const float SPEED_DIVISOR = 2500.0f;    // Normalize power to speed
+    const float MIN_SPEED = 0.18f;          // Minimum animation speed
+    const float MAX_SPEED = 0.25f;          // Maximum animation speed
+    
+    // Opacity mapping parameters
+    const float OPACITY_SCALE = 200.0f;     // Scale factor for opacity calculation
+    const float OPACITY_FLOOR = 10.0f;      // Minimum opacity value
+    
+    // Battery state of charge threshold
+    const float BATTERY_FULL_THRESHOLD = 99.5f;  // Consider battery full at this SOC
 
     // Helper functions
     auto clampf = [](float v, float a, float b) -> float {
@@ -452,7 +464,7 @@ void updatePowerFlowAnimation() {
 
     auto set_dot_alpha = [&](lv_obj_t* dot, float a01) {
         a01 = clampf(a01, 0.0f, 1.0f);
-        lv_opa_t opa = (lv_opa_t)(lroundf(a01 * 200.0f) + 10.0f);
+        lv_opa_t opa = (lv_opa_t)(lroundf(a01 * OPACITY_SCALE) + OPACITY_FLOOR);
         lv_obj_set_style_bg_opa(dot, opa, 0);
     };
 
@@ -469,7 +481,7 @@ void updatePowerFlowAnimation() {
     };
 
     auto advance_master_phase = [&](float ph, float max_watts_active, float dt_seconds) -> float {
-        float speed = clampf(max_watts_active / 2500.0f, 0.18f, 0.25f);
+        float speed = clampf(max_watts_active / SPEED_DIVISOR, MIN_SPEED, MAX_SPEED);
         ph += speed * dt_seconds;
         if (ph >= 1.0f) ph -= floorf(ph);
         return ph;
@@ -545,7 +557,7 @@ void updatePowerFlowAnimation() {
     float rem_grid = grid_sink;
 
     // Priority: solar to battery first (if not full)
-    if (rem_solar > 0 && rem_batt > 0 && soc < 99.5f) {
+    if (rem_solar > 0 && rem_batt > 0 && soc < BATTERY_FULL_THRESHOLD) {
         f_s2b = fminf(rem_solar, rem_batt);
         rem_solar -= f_s2b;
         rem_batt -= f_s2b;
