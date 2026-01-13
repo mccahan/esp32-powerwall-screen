@@ -55,9 +55,13 @@ static lv_obj_t *lbl_batt_val = nullptr;
 static lv_obj_t *lbl_soc = nullptr;
 static lv_obj_t *bar_soc = nullptr;
 
-// Layout background and overlays
-static lv_obj_t *img_layout = nullptr;
+// Icon images
+static lv_obj_t *img_solar = nullptr;
+static lv_obj_t *img_grid = nullptr;
 static lv_obj_t *img_grid_offline = nullptr;
+static lv_obj_t *img_home = nullptr;
+static lv_obj_t *img_battery = nullptr;
+static lv_obj_t *img_center = nullptr;
 
 
 // Data RX indicator dot
@@ -155,13 +159,26 @@ void createMainDashboard() {
     dot_batt_grid_2 = create_dot(COLOR_BATTERY);
     dot_batt_grid_3 = create_dot(COLOR_BATTERY);
 
-    // ========== Layout Background Image (created after dots so dots appear underneath) ==========
-    img_layout = lv_img_create(main_screen);
-    lv_img_set_src(img_layout, &layout_img);
-    lv_obj_set_pos(img_layout, 0, 0);
-    lv_obj_set_size(img_layout, TFT_WIDTH, TFT_HEIGHT);
-    lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(img_layout, LV_OBJ_FLAG_HIDDEN);
+    // ========== Icon Images (created after dots so dots appear underneath) ==========
+    img_solar = lv_img_create(main_screen);
+    lv_img_set_src(img_solar, &icon_solar_img);
+    lv_obj_set_pos(img_solar, 205, 31);
+
+    img_grid = lv_img_create(main_screen);
+    lv_img_set_src(img_grid, &icon_grid_img);
+    lv_obj_set_pos(img_grid, 77, 159);
+
+    img_home = lv_img_create(main_screen);
+    lv_img_set_src(img_home, &icon_home_img);
+    lv_obj_set_pos(img_home, 333, 159);
+
+    img_battery = lv_img_create(main_screen);
+    lv_img_set_src(img_battery, &icon_battery_img);
+    lv_obj_set_pos(img_battery, 206, 265);
+
+    img_center = lv_img_create(main_screen);
+    lv_img_set_src(img_center, &icon_center_img);
+    lv_obj_set_pos(img_center, 209, 163);
 
     // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
     // Battery value - centered at bottom
@@ -236,8 +253,8 @@ void createMainDashboard() {
 
     // ========== Grid Offline Overlay ==========
     img_grid_offline = lv_img_create(main_screen);
-    lv_img_set_src(img_grid_offline, &grid_offline_img);
-    lv_obj_set_pos(img_grid_offline, GRID_OFFLINE_X, GRID_OFFLINE_Y);
+    lv_img_set_src(img_grid_offline, &icon_grid_offline_img);
+    lv_obj_set_pos(img_grid_offline, 77, 159);
     lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     // ========== Data RX Indicator Dot ==========
@@ -254,7 +271,7 @@ void createMainDashboard() {
 
     // ========== Info Button (top right corner) ==========
     btn_info = lv_imgbtn_create(main_screen);
-    lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon, NULL);
+    lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon_img, NULL);
     lv_obj_set_size(btn_info, 55, 55);
     lv_obj_set_pos(btn_info, TFT_WIDTH - 65, 10);
     lv_obj_add_event_cb(btn_info, info_btn_event_cb, LV_EVENT_CLICKED, NULL);

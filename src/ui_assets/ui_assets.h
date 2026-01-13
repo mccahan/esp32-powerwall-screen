@@ -20,8 +20,12 @@ LV_FONT_DECLARE(space_bold_21);
 LV_FONT_DECLARE(space_bold_30);
 
 // Image declarations
-extern const lv_img_dsc_t layout_img;
-extern const lv_img_dsc_t grid_offline_img;
-extern const lv_img_dsc_t info_icon;
+extern const lv_img_dsc_t icon_battery_img;
+extern const lv_img_dsc_t icon_center_img;
+extern const lv_img_dsc_t icon_grid_img;
+extern const lv_img_dsc_t icon_grid_offline_img;
+extern const lv_img_dsc_t icon_home_img;
+extern const lv_img_dsc_t icon_solar_img;
+extern const lv_img_dsc_t info_icon_img;
 
 #endif // UI_ASSETS_H
