@@ -115,7 +115,48 @@ void createMainDashboard() {
     lv_obj_clear_flag(main_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_scr_load(main_screen);
 
-    // ========== Layout Background Image (must be created FIRST so labels appear on top) ==========
+    // ========== Animated Power Flow Dots (created first so they appear under layout) ==========
+    // Helper lambda to create a dot
+    auto create_dot = [&](uint32_t color) -> lv_obj_t* {
+        lv_obj_t *dot = lv_obj_create(main_screen);
+        lv_obj_set_size(dot, 12, 12);
+        lv_obj_set_style_radius(dot, 6, 0);
+        lv_obj_set_style_bg_color(dot, lv_color_hex(color), 0);
+        lv_obj_set_style_bg_opa(dot, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(dot, 0, 0);
+        lv_obj_add_flag(dot, LV_OBJ_FLAG_FLOATING);
+        lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
+        return dot;
+    };
+
+    // Solar flows (yellow dots)
+    dot_solar_home = create_dot(COLOR_SOLAR);
+    dot_solar_home_2 = create_dot(COLOR_SOLAR);
+    dot_solar_home_3 = create_dot(COLOR_SOLAR);
+    dot_solar_batt = create_dot(COLOR_SOLAR);
+    dot_solar_batt_2 = create_dot(COLOR_SOLAR);
+    dot_solar_batt_3 = create_dot(COLOR_SOLAR);
+    dot_solar_grid = create_dot(COLOR_SOLAR);
+    dot_solar_grid_2 = create_dot(COLOR_SOLAR);
+    dot_solar_grid_3 = create_dot(COLOR_SOLAR);
+
+    // Grid flows (gray dots)
+    dot_grid_home = create_dot(COLOR_GRID);
+    dot_grid_home_2 = create_dot(COLOR_GRID);
+    dot_grid_home_3 = create_dot(COLOR_GRID);
+    dot_grid_batt = create_dot(COLOR_GRID);
+    dot_grid_batt_2 = create_dot(COLOR_GRID);
+    dot_grid_batt_3 = create_dot(COLOR_GRID);
+
+    // Battery flows (green dots)
+    dot_batt_home = create_dot(COLOR_BATTERY);
+    dot_batt_home_2 = create_dot(COLOR_BATTERY);
+    dot_batt_home_3 = create_dot(COLOR_BATTERY);
+    dot_batt_grid = create_dot(COLOR_BATTERY);
+    dot_batt_grid_2 = create_dot(COLOR_BATTERY);
+    dot_batt_grid_3 = create_dot(COLOR_BATTERY);
+
+    // ========== Layout Background Image (created after dots so dots appear underneath) ==========
     img_layout = lv_img_create(main_screen);
     lv_img_set_src(img_layout, &layout_img);
     lv_obj_set_pos(img_layout, 0, 0);
@@ -219,47 +260,6 @@ void createMainDashboard() {
     lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_FLOATING);
     lv_obj_clear_flag(dot_data_rx, LV_OBJ_FLAG_SCROLLABLE);
-
-    // ========== Animated Power Flow Dots ==========
-    // Helper lambda to create a dot
-    auto create_dot = [&](uint32_t color) -> lv_obj_t* {
-        lv_obj_t *dot = lv_obj_create(main_screen);
-        lv_obj_set_size(dot, 12, 12);
-        lv_obj_set_style_radius(dot, 6, 0);
-        lv_obj_set_style_bg_color(dot, lv_color_hex(color), 0);
-        lv_obj_set_style_bg_opa(dot, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(dot, 0, 0);
-        lv_obj_add_flag(dot, LV_OBJ_FLAG_FLOATING);
-        lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
-        return dot;
-    };
-
-    // Solar flows (yellow dots)
-    dot_solar_home = create_dot(COLOR_SOLAR);
-    dot_solar_home_2 = create_dot(COLOR_SOLAR);
-    dot_solar_home_3 = create_dot(COLOR_SOLAR);
-    dot_solar_batt = create_dot(COLOR_SOLAR);
-    dot_solar_batt_2 = create_dot(COLOR_SOLAR);
-    dot_solar_batt_3 = create_dot(COLOR_SOLAR);
-    dot_solar_grid = create_dot(COLOR_SOLAR);
-    dot_solar_grid_2 = create_dot(COLOR_SOLAR);
-    dot_solar_grid_3 = create_dot(COLOR_SOLAR);
-
-    // Grid flows (gray dots)
-    dot_grid_home = create_dot(COLOR_GRID);
-    dot_grid_home_2 = create_dot(COLOR_GRID);
-    dot_grid_home_3 = create_dot(COLOR_GRID);
-    dot_grid_batt = create_dot(COLOR_GRID);
-    dot_grid_batt_2 = create_dot(COLOR_GRID);
-    dot_grid_batt_3 = create_dot(COLOR_GRID);
-
-    // Battery flows (green dots)
-    dot_batt_home = create_dot(COLOR_BATTERY);
-    dot_batt_home_2 = create_dot(COLOR_BATTERY);
-    dot_batt_home_3 = create_dot(COLOR_BATTERY);
-    dot_batt_grid = create_dot(COLOR_BATTERY);
-    dot_batt_grid_2 = create_dot(COLOR_BATTERY);
-    dot_batt_grid_3 = create_dot(COLOR_BATTERY);
 
     // ========== Info Button (top right corner) ==========
     btn_info = lv_imgbtn_create(main_screen);
@@ -465,6 +465,8 @@ void updatePowerFlowAnimation() {
     auto set_dot_alpha = [&](lv_obj_t* dot, float a01) {
         a01 = clampf(a01, 0.0f, 1.0f);
         lv_opa_t opa = (lv_opa_t)(lroundf(a01 * OPACITY_SCALE) + OPACITY_FLOOR);
+        // Clamp to LV_OPA_MAX to prevent exceeding LVGL's maximum opacity value
+        if (opa > LV_OPA_MAX) opa = LV_OPA_MAX;
         lv_obj_set_style_bg_opa(dot, opa, 0);
     };
 
