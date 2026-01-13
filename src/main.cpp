@@ -4,6 +4,7 @@
 #include <Arduino_GFX_Library.h>
 #include <improv.h>
 #include <Preferences.h>
+#include <cmath>
 #include "ui_assets/ui_assets.h"
 #include "mqtt_client.h"
 #include "web_server.h"
@@ -717,8 +718,6 @@ void updateDataRxPulse() {
     
     // Pulse lasts 900ms
     if (pulse_age <= 900) {
-        // Note: Flag already cleared above when pulse starts, no need to clear again
-        
         float t = (float)pulse_age / 900.0f;  // 0..1
         float s = sin(M_PI * t);
         float a = s * s;  // smooth single pulse
@@ -726,8 +725,8 @@ void updateDataRxPulse() {
         // Add visibility floor so dot doesn't completely disappear
         a = 0.15f + 0.85f * a;
         
-        // Use integer arithmetic to avoid float rounding overhead
-        lv_opa_t opacity = (lv_opa_t)((int)(a * 100.0f));
+        // LVGL opacity range is 0-255, so scale accordingly
+        lv_opa_t opacity = (lv_opa_t)((int)(a * 255.0f));
         lv_obj_set_style_bg_opa(dot_data_rx, opacity, 0);
     } else {
         lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
