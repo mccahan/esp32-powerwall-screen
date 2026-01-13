@@ -433,7 +433,7 @@ void updatePowerFlowAnimation() {
     const float THRESH_W = 50.0f;
     const float FADE = 0.12f;
     const int DOT_R = 6;
-    const uint32_t DEFAULT_FRAME_MS = 33;  // ~30 FPS
+    const uint32_t DEFAULT_FRAME_MS = 1000 / 30;  // 30 FPS (matches YAML implementation)
     
     // Animation speed parameters
     const float SPEED_DIVISOR = 2500.0f;    // Normalize power to speed
@@ -464,9 +464,10 @@ void updatePowerFlowAnimation() {
 
     auto set_dot_alpha = [&](lv_obj_t* dot, float a01) {
         a01 = clampf(a01, 0.0f, 1.0f);
-        lv_opa_t opa = (lv_opa_t)(lroundf(a01 * OPACITY_SCALE) + OPACITY_FLOOR);
-        // Clamp to LV_OPA_MAX to prevent exceeding LVGL's maximum opacity value
-        if (opa > LV_OPA_MAX) opa = LV_OPA_MAX;
+        // Calculate opacity value and clamp before casting to prevent overflow
+        float opa_float = (a01 * OPACITY_SCALE) + OPACITY_FLOOR;
+        if (opa_float > (float)LV_OPA_MAX) opa_float = (float)LV_OPA_MAX;
+        lv_opa_t opa = (lv_opa_t)lroundf(opa_float);
         lv_obj_set_style_bg_opa(dot, opa, 0);
     };
 
