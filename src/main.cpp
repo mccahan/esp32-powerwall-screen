@@ -1,13 +1,16 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include <WiFi.h>
-#include <esp_psram.h>
 #include <LovyanGFX.hpp>
+
+// Include ESP32-S3 specific panels and buses
+#include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
+#include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
 
 // Display configuration for Guition ESP32-S3-4848S040
 class LGFX : public lgfx::LGFX_Device
 {
-    lgfx::Panel_ST7701 _panel_instance;
+    lgfx::Panel_RGB _panel_instance;
     lgfx::Bus_RGB _bus_instance;
     lgfx::Light_PWM _light_instance;
     lgfx::Touch_GT911 _touch_instance;
@@ -76,6 +79,16 @@ public:
         }
 
         {
+            // ST7701S SPI configuration for sending init commands
+            auto cfg = _panel_instance.config_detail();
+            cfg.pin_cs = GPIO_NUM_39;
+            cfg.pin_sclk = GPIO_NUM_48;
+            cfg.pin_mosi = GPIO_NUM_47;
+            cfg.use_psram = 2;  // Use PSRAM for frame buffer
+            _panel_instance.config_detail(cfg);
+        }
+
+        {
             auto cfg = _light_instance.config();
             cfg.pin_bl = GPIO_NUM_38;
             cfg.invert = false;
@@ -96,7 +109,7 @@ public:
             cfg.bus_shared = false;
             cfg.offset_rotation = 0;
 
-            cfg.i2c_port = I2C_NUM_0;
+            cfg.i2c_port = 0;  // I2C port 0
             cfg.pin_sda = GPIO_NUM_19;
             cfg.pin_scl = GPIO_NUM_45;
             cfg.freq = 400000;
