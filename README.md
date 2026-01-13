@@ -100,8 +100,12 @@ lv_font_conv --no-compress --no-prefilter --bpp 4 --size 30 \
   --font assets/SpaceGrotesk-Bold.ttf --range 0x20-0x7F \
   --format lvgl -o src/ui_assets/space_bold_30.c
 
-# Convert SVG icons to C arrays (requires custom script)
-# See conversion script in project history for details
+# Convert SVG icons to C arrays using the provided script
+python3 tools/convert_svg_to_lvgl.py assets/layout.svg \
+  src/ui_assets/layout_img.c layout_img 480 480
+
+python3 tools/convert_svg_to_lvgl.py assets/grid_offline.svg \
+  src/ui_assets/grid_offline_img.c grid_offline_img 79 81
 ```
 
 ### Building
