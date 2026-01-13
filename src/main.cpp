@@ -673,7 +673,16 @@ void checkWiFiConnection() {
         // Hide boot screen and show dashboard
         hideBootScreen();
 
-        String status = "WiFi: " + WiFi.SSID() + " | MQTT: Connecting... | Config: http://" + ip;
+        String status = "WiFi: " + WiFi.SSID();
+        
+        // Check if MQTT is configured before showing status
+        MQTTConfig& mqtt_config = mqttClient.getConfig();
+        if (mqtt_config.host.length() > 0) {
+            status += " | MQTT: Connecting...";
+        } else {
+            status += " | MQTT: Not configured";
+        }
+        status += " | Config: http://" + ip;
         updateStatusLabel(status.c_str());
 
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
