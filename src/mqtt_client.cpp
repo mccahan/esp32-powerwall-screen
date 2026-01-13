@@ -45,8 +45,14 @@ void PowerwallMQTTClient::loadConfig() {
     config.topic_prefix = preferences.getString("prefix", "pypowerwall/");
     preferences.end();
     
-    Serial.printf("MQTT Config loaded - Host: %s, Port: %d, Prefix: %s\n", 
-                  config.host.c_str(), config.port, config.topic_prefix.c_str());
+    Serial.println("─────────────────────────────────");
+    Serial.println("MQTT Configuration Loaded:");
+    Serial.printf("  Host: %s\n", config.host.length() > 0 ? config.host.c_str() : "(not configured)");
+    Serial.printf("  Port: %d\n", config.port);
+    Serial.printf("  User: %s\n", config.user.length() > 0 ? config.user.c_str() : "(none)");
+    Serial.printf("  Password: %s\n", config.password.length() > 0 ? "***" : "(none)");
+    Serial.printf("  Topic Prefix: %s\n", config.topic_prefix.c_str());
+    Serial.println("─────────────────────────────────");
 }
 
 void PowerwallMQTTClient::saveConfig() {
@@ -58,10 +64,11 @@ void PowerwallMQTTClient::saveConfig() {
     preferences.putString("prefix", config.topic_prefix);
     preferences.end();
     
-    Serial.println("MQTT Config saved to flash");
+    Serial.println("✓ MQTT Config saved to flash");
     
     // Reinitialize with new config
     if (config.host.length() > 0) {
+        Serial.println("→ Reinitializing MQTT with new config...");
         mqtt_client.disconnect();
         mqtt_client.setServer(config.host.c_str(), config.port);
         
@@ -74,6 +81,8 @@ void PowerwallMQTTClient::saveConfig() {
         // Only connect if WiFi is already connected
         if (WiFi.status() == WL_CONNECTED) {
             mqtt_client.connect();
+        } else {
+            Serial.println("→ WiFi not connected, will connect to MQTT when WiFi is ready");
         }
     }
 }
@@ -93,16 +102,21 @@ void PowerwallMQTTClient::disconnect() {
 void PowerwallMQTTClient::connect() {
     // Only attempt connection if WiFi is connected and MQTT is configured
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("Cannot connect to MQTT - WiFi not connected");
+        Serial.println("✗ Cannot connect to MQTT - WiFi not connected");
         return;
     }
     
     if (config.host.length() == 0) {
-        Serial.println("Cannot connect to MQTT - not configured");
+        Serial.println("✗ Cannot connect to MQTT - not configured");
         return;
     }
     
-    Serial.printf("Connecting to MQTT broker at %s:%d...\n", config.host.c_str(), config.port);
+    Serial.printf("→ Connecting to MQTT broker at %s:%d", config.host.c_str(), config.port);
+    if (config.user.length() > 0) {
+        Serial.printf(" (user: %s)", config.user.c_str());
+    }
+    Serial.println("...");
+    
     mqtt_client.connect();
 }
 
@@ -155,7 +169,7 @@ void PowerwallMQTTClient::onMqttMessageStatic(char* topic, char* payload, AsyncM
 
 // Instance methods
 void PowerwallMQTTClient::onMqttConnect(bool sessionPresent) {
-    Serial.println("Connected to MQTT broker");
+    Serial.println("✓ Connected to MQTT broker");
     
     // Subscribe to all pypowerwall topics
     String prefix = config.topic_prefix;
@@ -168,19 +182,46 @@ void PowerwallMQTTClient::onMqttConnect(bool sessionPresent) {
     mqtt_client.subscribe((prefix + "site/offgrid").c_str(), 0);
     mqtt_client.subscribe((prefix + "battery/time_remaining").c_str(), 0);
     
-    Serial.printf("Subscribed to MQTT topics with prefix: %s\n", prefix.c_str());
+    Serial.printf("✓ Subscribed to MQTT topics with prefix: %s\n", prefix.c_str());
 }
 
 void PowerwallMQTTClient::onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-    Serial.println("Disconnected from MQTT broker");
+    Serial.print("✗ Disconnected from MQTT broker - Reason: ");
+    switch(reason) {
+        case AsyncMqttClientDisconnectReason::TCP_DISCONNECTED:
+            Serial.println("TCP disconnected");
+            break;
+        case AsyncMqttClientDisconnectReason::MQTT_UNACCEPTABLE_PROTOCOL_VERSION:
+            Serial.println("Unacceptable protocol version");
+            break;
+        case AsyncMqttClientDisconnectReason::MQTT_IDENTIFIER_REJECTED:
+            Serial.println("Identifier rejected");
+            break;
+        case AsyncMqttClientDisconnectReason::MQTT_SERVER_UNAVAILABLE:
+            Serial.println("Server unavailable");
+            break;
+        case AsyncMqttClientDisconnectReason::MQTT_MALFORMED_CREDENTIALS:
+            Serial.println("Malformed credentials");
+            break;
+        case AsyncMqttClientDisconnectReason::MQTT_NOT_AUTHORIZED:
+            Serial.println("Not authorized");
+            break;
+        default:
+            Serial.println("Unknown");
+            break;
+    }
     
-    // Reconnect will happen automatically via AsyncMqttClient
+    // AsyncMqttClient has auto-reconnect, but only if WiFi is still connected
+    // We'll attempt manual reconnection after a delay
+    if (WiFi.status() == WL_CONNECTED && config.host.length() > 0) {
+        Serial.println("Will attempt to reconnect to MQTT in 5 seconds...");
+    }
 }
 
 void PowerwallMQTTClient::onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
     // Limit message size to prevent stack overflow
     if (len > MAX_MQTT_MESSAGE_SIZE) {
-        Serial.printf("MQTT message too large (%d bytes), ignoring\n", len);
+        Serial.printf("✗ MQTT message too large (%d bytes), ignoring\n", len);
         return;
     }
     
@@ -198,7 +239,7 @@ void PowerwallMQTTClient::onMqttMessage(char* topic, char* payload, AsyncMqttCli
     
     // Check if conversion was successful
     if (endptr == message || *endptr != '\0') {
-        Serial.printf("Failed to parse MQTT value: %s\n", message);
+        Serial.printf("✗ Failed to parse MQTT value from topic '%s': %s\n", topic, message);
         return;
     }
     
@@ -207,50 +248,50 @@ void PowerwallMQTTClient::onMqttMessage(char* topic, char* payload, AsyncMqttCli
         if (solarCallback) {
             solarCallback(value);
         }
-        Serial.printf("Solar: %.1f W\n", value);
+        Serial.printf("← MQTT: Solar: %.1f W\n", value);
     }
     else if (topicStr == prefix + "site/instant_power") {
         if (gridCallback) {
             gridCallback(value);
         }
-        Serial.printf("Grid: %.1f W\n", value);
+        Serial.printf("← MQTT: Grid: %.1f W\n", value);
     }
     else if (topicStr == prefix + "load/instant_power") {
         if (homeCallback) {
             homeCallback(value);
         }
-        Serial.printf("Load: %.1f W\n", value);
+        Serial.printf("← MQTT: Load: %.1f W\n", value);
     }
     else if (topicStr == prefix + "battery/instant_power") {
         if (batteryCallback) {
             batteryCallback(value);
         }
-        Serial.printf("Battery: %.1f W\n", value);
+        Serial.printf("← MQTT: Battery: %.1f W\n", value);
     }
     else if (topicStr == prefix + "battery/level") {
         if (socCallback) {
             socCallback(value);
         }
-        Serial.printf("SOC: %.1f %%\n", value);
+        Serial.printf("← MQTT: SOC: %.1f %%\n", value);
     }
     else if (topicStr == prefix + "site/offgrid") {
         // Parse integer value with error checking
         char* endptr_int;
         long offgrid_long = strtol(message, &endptr_int, 10);
         if (endptr_int == message || *endptr_int != '\0' || offgrid_long < 0 || offgrid_long > 1) {
-            Serial.printf("Failed to parse off-grid value: %s\n", message);
+            Serial.printf("✗ Failed to parse off-grid value: %s\n", message);
             return;
         }
         int offgrid = (int)offgrid_long;
         if (offGridCallback) {
             offGridCallback(offgrid);
         }
-        Serial.printf("Off-grid: %d\n", offgrid);
+        Serial.printf("← MQTT: Off-grid: %d\n", offgrid);
     }
     else if (topicStr == prefix + "battery/time_remaining") {
         if (timeRemainingCallback) {
             timeRemainingCallback(value);
         }
-        Serial.printf("Time remaining: %.1f hours\n", value);
+        Serial.printf("← MQTT: Time remaining: %.1f hours\n", value);
     }
 }

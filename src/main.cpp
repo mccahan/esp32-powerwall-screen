@@ -105,6 +105,10 @@ static lv_obj_t *dot_data_rx = nullptr;
 static unsigned long last_data_ms = 0;
 static unsigned long last_pulse_ms = 0;
 
+// MQTT status monitoring
+static unsigned long last_mqtt_status_update = 0;
+static bool last_mqtt_status = false;
+
 // Improv WiFi state
 static improv::State improv_state = improv::STATE_AUTHORIZED;
 static uint8_t improv_buffer[256];
@@ -144,6 +148,7 @@ void connectToWiFi(const char* ssid, const char* password);
 void checkWiFiConnection();
 String getLocalIP();
 void updateDataRxPulse();
+void updateMQTTStatus();
 
 // Power value update functions (forward declarations)
 void updateSolarValue(float watts);
@@ -236,6 +241,7 @@ void loop() {
     loopImprov();
     checkWiFiConnection();
     updateDataRxPulse();
+    updateMQTTStatus();
 
     // Check boot screen timeout
     if (boot_screen && !lv_obj_has_flag(boot_screen, LV_OBJ_FLAG_HIDDEN)) {
@@ -667,7 +673,7 @@ void checkWiFiConnection() {
         // Hide boot screen and show dashboard
         hideBootScreen();
 
-        String status = "WiFi: " + WiFi.SSID() + " | Config: http://" + ip;
+        String status = "WiFi: " + WiFi.SSID() + " | MQTT: Connecting... | Config: http://" + ip;
         updateStatusLabel(status.c_str());
 
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
@@ -726,6 +732,39 @@ void updateDataRxPulse() {
         lv_obj_set_style_bg_opa(dot_data_rx, opacity, 0);
     } else {
         lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// ============== MQTT Status Monitoring ==============
+
+void updateMQTTStatus() {
+    // Check MQTT status every 5 seconds and update UI if changed
+    unsigned long now = millis();
+    if (now - last_mqtt_status_update < 5000) {
+        return;
+    }
+    last_mqtt_status_update = now;
+    
+    bool mqtt_connected = mqttClient.isConnected();
+    
+    // Only update if status changed
+    if (mqtt_connected != last_mqtt_status) {
+        last_mqtt_status = mqtt_connected;
+        
+        // Update status label only if WiFi is connected and boot screen is hidden
+        if (WiFi.status() == WL_CONNECTED && lv_obj_has_flag(boot_screen, LV_OBJ_FLAG_HIDDEN)) {
+            String ip = getLocalIP();
+            String status = "WiFi: " + WiFi.SSID() + " | ";
+            
+            if (mqtt_connected) {
+                status += "MQTT: Connected";
+            } else {
+                status += "MQTT: Disconnected";
+            }
+            status += " | Config: http://" + ip;
+            
+            updateStatusLabel(status.c_str());
+        }
     }
 }
 
