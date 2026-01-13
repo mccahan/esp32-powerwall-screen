@@ -39,6 +39,9 @@
 #define COLOR_BAR_BG    0x16181C
 #define COLOR_BAR_FILL  0x22C55E
 
+// Animation timing constants
+#define ANIMATION_FRAME_MS  33  // ~30 FPS (matches ESPHome 33ms update_interval)
+
 // UI elements - Main dashboard
 static lv_obj_t *main_screen = nullptr;
 
@@ -292,8 +295,8 @@ void updateDataRxPulse() {
     
     const unsigned long now = millis();
     
-    // Throttle updates to ~30 FPS (33ms between updates)
-    if (now - last_pulse_update_ms < 33) {
+    // Throttle updates to ~30 FPS
+    if (now - last_pulse_update_ms < ANIMATION_FRAME_MS) {
         return;
     }
     last_pulse_update_ms = now;
@@ -452,7 +455,6 @@ void updatePowerFlowAnimation() {
     const float THRESH_W = 50.0f;
     const float FADE = 0.12f;
     const int DOT_R = 6;
-    const uint32_t DEFAULT_FRAME_MS = 1000 / 30;  // 30 FPS (matches YAML implementation)
     
     // Animation speed parameters
     const float SPEED_DIVISOR = 2500.0f;    // Normalize power to speed
@@ -629,13 +631,13 @@ void updatePowerFlowAnimation() {
     unsigned long elapsed_ms;
     
     if (last_anim == 0 || now < last_anim) {
-        elapsed_ms = DEFAULT_FRAME_MS;
+        elapsed_ms = ANIMATION_FRAME_MS;
     } else {
         elapsed_ms = now - last_anim;
     }
     
-    // Throttle to ~30 FPS (33ms minimum between updates)
-    if (elapsed_ms < DEFAULT_FRAME_MS && last_anim != 0) {
+    // Throttle to ~30 FPS
+    if (elapsed_ms < ANIMATION_FRAME_MS && last_anim != 0) {
         return;  // Skip this update, not enough time has passed
     }
     
