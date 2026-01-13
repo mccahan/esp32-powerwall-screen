@@ -19,7 +19,7 @@ pio run -t clean
 
 # Manual flash with esptool (if PlatformIO upload fails)
 ~/.platformio/packages/tool-esptoolpy/esptool.py \
-  --chip esp32s3 --port /dev/cu.usbserial-10 --baud 115200 \
+  --chip esp32s3 --port /dev/cu.usbserial-10 --baud 460800 \
   write_flash -z --flash_mode dio --flash_freq 80m --flash_size 16MB \
   0x0 .pio/build/esp32-s3-devkitc-1/bootloader.bin \
   0x8000 .pio/build/esp32-s3-devkitc-1/partitions.bin \
