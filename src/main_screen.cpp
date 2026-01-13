@@ -172,7 +172,7 @@ void createMainDashboard() {
     // ========== Data RX Indicator Dot ==========
     dot_data_rx = lv_obj_create(main_screen);
     lv_obj_set_size(dot_data_rx, 10, 10);
-    lv_obj_set_pos(dot_data_rx, 460, 10);
+    lv_obj_set_pos(dot_data_rx, 10, 10);
     lv_obj_set_style_radius(dot_data_rx, 5, 0);
     lv_obj_set_style_bg_color(dot_data_rx, lv_color_hex(0xFF0000), 0);
     lv_obj_set_style_bg_opa(dot_data_rx, LV_OPA_TRANSP, 0);
