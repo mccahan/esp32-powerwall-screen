@@ -4,6 +4,7 @@
 #include <Arduino_GFX_Library.h>
 #include <improv.h>
 #include <Preferences.h>
+#include "ui_assets/ui_assets.h"
 
 // Device info
 #define DEVICE_NAME "Powerwall Display"
@@ -63,15 +64,13 @@ static lv_obj_t *lbl_grid_val = nullptr;
 static lv_obj_t *lbl_home_val = nullptr;
 static lv_obj_t *lbl_batt_val = nullptr;
 
-// Section title labels
-static lv_obj_t *lbl_solar_title = nullptr;
-static lv_obj_t *lbl_grid_title = nullptr;
-static lv_obj_t *lbl_home_title = nullptr;
-static lv_obj_t *lbl_batt_title = nullptr;
-
 // SOC elements
 static lv_obj_t *lbl_soc = nullptr;
 static lv_obj_t *bar_soc = nullptr;
+
+// Layout background and overlays
+static lv_obj_t *img_layout = nullptr;
+static lv_obj_t *img_grid_offline = nullptr;
 
 // Status/WiFi label
 static lv_obj_t *lbl_status = nullptr;
@@ -249,69 +248,62 @@ void createMainDashboard() {
     lv_obj_clear_flag(main_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_scr_load(main_screen);
 
-    // ========== SOLAR (top center) ==========
-    lbl_solar_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_solar_title, "SOLAR");
-    lv_obj_set_style_text_color(lbl_solar_title, lv_color_hex(COLOR_SOLAR), 0);
-    lv_obj_set_style_text_font(lbl_solar_title, &lv_font_montserrat_16, 0);
-    lv_obj_align(lbl_solar_title, LV_ALIGN_TOP_MID, 0, 50);
-
-    lbl_solar_val = lv_label_create(main_screen);
-    lv_label_set_text(lbl_solar_val, "0.0 kW");
-    lv_obj_set_style_text_color(lbl_solar_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_solar_val, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_solar_val, LV_ALIGN_TOP_MID, 0, 75);
-
-    // ========== GRID (left center) ==========
-    lbl_grid_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_grid_title, "GRID");
-    lv_obj_set_style_text_color(lbl_grid_title, lv_color_hex(COLOR_GRID), 0);
-    lv_obj_set_style_text_font(lbl_grid_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_grid_title, 80, 175);
-
-    lbl_grid_val = lv_label_create(main_screen);
-    lv_label_set_text(lbl_grid_val, "0.0 kW");
-    lv_obj_set_style_text_color(lbl_grid_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_grid_val, &lv_font_montserrat_28, 0);
-    lv_obj_set_pos(lbl_grid_val, 55, 200);
-
-    // ========== HOME (right center) ==========
-    lbl_home_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_home_title, "HOME");
-    lv_obj_set_style_text_color(lbl_home_title, lv_color_hex(COLOR_HOME), 0);
-    lv_obj_set_style_text_font(lbl_home_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_home_title, 365, 175);
-
-    lbl_home_val = lv_label_create(main_screen);
-    lv_label_set_text(lbl_home_val, "0.0 kW");
-    lv_obj_set_style_text_color(lbl_home_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_home_val, &lv_font_montserrat_28, 0);
-    lv_obj_set_pos(lbl_home_val, 340, 200);
-
-    // ========== BATTERY (bottom center) ==========
-    lbl_batt_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_batt_title, "BATTERY");
-    lv_obj_set_style_text_color(lbl_batt_title, lv_color_hex(COLOR_BATTERY), 0);
-    lv_obj_set_style_text_font(lbl_batt_title, &lv_font_montserrat_16, 0);
-    lv_obj_align(lbl_batt_title, LV_ALIGN_TOP_MID, 0, 290);
-
+    // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
+    // Battery value - centered at x=240, y=345 (from YAML line 666-674)
     lbl_batt_val = lv_label_create(main_screen);
     lv_label_set_text(lbl_batt_val, "0.0 kW");
     lv_obj_set_style_text_color(lbl_batt_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_batt_val, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_batt_val, LV_ALIGN_TOP_MID, 0, 315);
+    lv_obj_set_style_text_font(lbl_batt_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_batt_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_batt_val, 0, 345);
+    lv_obj_set_width(lbl_batt_val, 480);
+    lv_obj_set_height(lbl_batt_val, 28);
 
-    // ========== SOC Label ==========
+    // Solar value - centered at x=240, y=111 (from YAML line 677-687)
+    lbl_solar_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_solar_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_solar_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_solar_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_solar_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_solar_val, 0, 111);
+    lv_obj_set_width(lbl_solar_val, 480);
+    lv_obj_set_height(lbl_solar_val, 28);
+
+    // Grid value - x=62, y=240 (from YAML line 689-699)
+    lbl_grid_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_grid_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_grid_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_grid_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_grid_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_grid_val, 62, 240);
+    lv_obj_set_width(lbl_grid_val, 100);
+    lv_obj_set_height(lbl_grid_val, 28);
+
+    // Home value - x=318, y=240 (from YAML line 701-711)
+    lbl_home_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_home_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_home_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_home_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_home_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_home_val, 318, 240);
+    lv_obj_set_width(lbl_home_val, 100);
+    lv_obj_set_height(lbl_home_val, 28);
+
+    // ========== SOC Label (using custom font space_bold_30) ==========
+    // SOC percentage - centered, y=413 (from YAML line 713-724)
     lbl_soc = lv_label_create(main_screen);
     lv_label_set_text(lbl_soc, "0%");
     lv_obj_set_style_text_color(lbl_soc, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_soc, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_soc, LV_ALIGN_TOP_MID, 0, 390);
+    lv_obj_set_style_text_font(lbl_soc, &space_bold_30, 0);
+    lv_obj_set_style_text_align(lbl_soc, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_soc, 0, 413);
+    lv_obj_set_width(lbl_soc, 480);
+    lv_obj_set_height(lbl_soc, 39);
 
-    // ========== SOC Bar ==========
+    // ========== SOC Bar (from YAML line 755-771) ==========
     bar_soc = lv_bar_create(main_screen);
     lv_obj_set_size(bar_soc, 316, 13);
-    lv_obj_align(bar_soc, LV_ALIGN_TOP_MID, 0, 430);
+    lv_obj_set_pos(bar_soc, 82, 454);
     lv_bar_set_range(bar_soc, 0, 100);
     lv_bar_set_value(bar_soc, 0, LV_ANIM_OFF);
 
@@ -326,6 +318,19 @@ void createMainDashboard() {
     lv_obj_set_style_bg_color(bar_soc, lv_color_hex(COLOR_BAR_FILL), LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(bar_soc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(bar_soc, 2, LV_PART_INDICATOR);
+
+    // ========== Layout Background Image (from YAML line 987-994) ==========
+    img_layout = lv_img_create(main_screen);
+    lv_img_set_src(img_layout, &layout_img);
+    lv_obj_set_pos(img_layout, 0, 0);
+    lv_obj_set_size(img_layout, 480, 480);
+    lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
+
+    // ========== Grid Offline Overlay (from YAML line 1022-1027) ==========
+    img_grid_offline = lv_img_create(main_screen);
+    lv_img_set_src(img_grid_offline, &grid_offline_img);
+    lv_obj_set_pos(img_grid_offline, 77, 159);
+    lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     // ========== Status/WiFi Label ==========
     lbl_status = lv_label_create(main_screen);
