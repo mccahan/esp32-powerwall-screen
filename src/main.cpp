@@ -624,6 +624,9 @@ void checkWiFiConnection() {
         updateStatusLabel(status.c_str());
 
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
+        
+        // Now that WiFi is connected, connect to MQTT broker
+        mqttClient.connect();
     }
     else if (millis() - wifi_connect_start > WIFI_CONNECT_TIMEOUT) {
         wifi_connecting = false;

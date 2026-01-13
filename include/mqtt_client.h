@@ -29,6 +29,7 @@ public:
     bool isConnected();
     MQTTConfig& getConfig();
     void disconnect();
+    void connect();
     
     // Callback setters for MQTT data updates
     void setSolarCallback(void (*callback)(float));

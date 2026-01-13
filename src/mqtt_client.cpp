@@ -1,4 +1,5 @@
 #include "mqtt_client.h"
+#include <WiFi.h>
 
 // Static instance pointer
 PowerwallMQTTClient* PowerwallMQTTClient::instance = nullptr;
@@ -28,8 +29,8 @@ void PowerwallMQTTClient::begin() {
             mqtt_client.setCredentials(config.user.c_str(), config.password.c_str());
         }
         
-        mqtt_client.connect();
-        Serial.printf("MQTT client initialized - Server: %s:%d\n", config.host.c_str(), config.port);
+        // Don't connect yet - wait for WiFi to be ready
+        Serial.printf("MQTT client initialized - Server: %s:%d (waiting for WiFi)\n", config.host.c_str(), config.port);
     } else {
         Serial.println("MQTT not configured - skipping initialization");
     }
@@ -70,7 +71,10 @@ void PowerwallMQTTClient::saveConfig() {
             mqtt_client.setCredentials(nullptr, nullptr);
         }
         
-        mqtt_client.connect();
+        // Only connect if WiFi is already connected
+        if (WiFi.status() == WL_CONNECTED) {
+            mqtt_client.connect();
+        }
     }
 }
 
@@ -84,6 +88,22 @@ MQTTConfig& PowerwallMQTTClient::getConfig() {
 
 void PowerwallMQTTClient::disconnect() {
     mqtt_client.disconnect();
+}
+
+void PowerwallMQTTClient::connect() {
+    // Only attempt connection if WiFi is connected and MQTT is configured
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("Cannot connect to MQTT - WiFi not connected");
+        return;
+    }
+    
+    if (config.host.length() == 0) {
+        Serial.println("Cannot connect to MQTT - not configured");
+        return;
+    }
+    
+    Serial.printf("Connecting to MQTT broker at %s:%d...\n", config.host.c_str(), config.port);
+    mqtt_client.connect();
 }
 
 void PowerwallMQTTClient::setSolarCallback(void (*callback)(float)) {
