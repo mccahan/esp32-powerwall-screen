@@ -22,5 +22,6 @@ LV_FONT_DECLARE(space_bold_30);
 // Image declarations
 extern const lv_img_dsc_t layout_img;
 extern const lv_img_dsc_t grid_offline_img;
+extern const lv_img_dsc_t info_icon;
 
 #endif // UI_ASSETS_H

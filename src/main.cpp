@@ -1,13 +1,25 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include <WiFi.h>
+#include <Wire.h>
 #include <Arduino_GFX_Library.h>
+#include <TAMC_GT911.h>
 #include "ui_assets/ui_assets.h"
 #include "mqtt_client.h"
 #include "web_server.h"
 #include "boot_screen.h"
 #include "main_screen.h"
+#include "info_screen.h"
 #include "improv_wifi.h"
+
+// Touch controller pins for Guition ESP32-S3-4848S040
+#define TOUCH_SDA 19
+#define TOUCH_SCL 45
+#define TOUCH_INT -1  // Not connected
+#define TOUCH_RST -1  // Not connected
+
+// Touch controller instance
+TAMC_GT911 touchController(TOUCH_SDA, TOUCH_SCL, TOUCH_INT, TOUCH_RST, 480, 480);
 
 // Backlight pin
 #define GFX_BL 38
@@ -43,9 +55,32 @@ static lv_disp_drv_t disp_drv;
 // LVGL tick tracking
 static unsigned long last_tick = 0;
 
+// LVGL touch input device
+static lv_indev_drv_t indev_drv;
+static lv_indev_t *touch_indev = nullptr;
+
+// Touch read callback for LVGL
+void my_touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
+    touchController.read();
+
+    if (touchController.isTouched) {
+        data->state = LV_INDEV_STATE_PRESSED;
+
+        // Invert coordinates to match screen orientation (origin at top-left)
+        data->point.x = TFT_WIDTH - 1 - touchController.points[0].x;
+        data->point.y = TFT_HEIGHT - 1 - touchController.points[0].y;
+
+        // Log touch events for debugging
+        Serial.printf("Touch: x=%d, y=%d\n", data->point.x, data->point.y);
+    } else {
+        data->state = LV_INDEV_STATE_RELEASED;
+    }
+}
+
 // Forward declarations
 void setupDisplay();
 void setupLVGL();
+void setupTouch();
 void createUI();
 
 // LVGL display flush callback
@@ -74,6 +109,9 @@ void setup() {
 
     // Initialize LVGL
     setupLVGL();
+
+    // Initialize touch
+    setupTouch();
 
     // Create UI
     createUI();
@@ -137,6 +175,11 @@ void loop() {
     updateDataRxPulse();
     updateMQTTStatus();
 
+    // Update info screen data if visible
+    if (isInfoScreenVisible()) {
+        updateInfoScreenData();
+    }
+
     // Check boot screen timeout
     if (isBootScreenVisible()) {
         if (millis() - boot_start_time > BOOT_SCREEN_TIMEOUT) {
@@ -181,7 +224,31 @@ void setupLVGL() {
     lv_disp_drv_register(&disp_drv);
 }
 
+void setupTouch() {
+    // Initialize I2C for touch controller
+    Wire.begin(TOUCH_SDA, TOUCH_SCL);
+
+    // Initialize GT911 touch controller
+    touchController.begin();
+    touchController.setRotation(ROTATION_NORMAL);
+
+    Serial.println("GT911 touch controller initialized");
+
+    // Register LVGL input device
+    lv_indev_drv_init(&indev_drv);
+    indev_drv.type = LV_INDEV_TYPE_POINTER;
+    indev_drv.read_cb = my_touchpad_read;
+    touch_indev = lv_indev_drv_register(&indev_drv);
+
+    if (touch_indev) {
+        Serial.println("LVGL touch input device registered");
+    } else {
+        Serial.println("Failed to register LVGL touch input device!");
+    }
+}
+
 void createUI() {
     createMainDashboard();
+    createInfoScreen();
     createBootScreen(getMainScreen());
 }

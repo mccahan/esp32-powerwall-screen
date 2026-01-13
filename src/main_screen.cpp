@@ -1,4 +1,5 @@
 #include "main_screen.h"
+#include "info_screen.h"
 #include "ui_assets/ui_assets.h"
 #include "mqtt_client.h"
 #include <WiFi.h>
@@ -60,6 +61,12 @@ static lv_obj_t *lbl_status = nullptr;
 
 // Data RX indicator dot
 static lv_obj_t *dot_data_rx = nullptr;
+
+// Info button
+static lv_obj_t *btn_info = nullptr;
+
+// Forward declaration for info button callback
+static void info_btn_event_cb(lv_event_t *e);
 
 // Timing variables for pulse animation
 unsigned long last_data_ms = 0;
@@ -180,6 +187,18 @@ void createMainDashboard() {
     lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_FLOATING);
     lv_obj_clear_flag(dot_data_rx, LV_OBJ_FLAG_SCROLLABLE);
+
+    // ========== Info Button (top right corner) ==========
+    btn_info = lv_imgbtn_create(main_screen);
+    lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon, NULL);
+    lv_obj_set_size(btn_info, 55, 55);
+    lv_obj_set_pos(btn_info, TFT_WIDTH - 65, 10);
+    lv_obj_add_event_cb(btn_info, info_btn_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_flag(btn_info, LV_OBJ_FLAG_FLOATING);
+}
+
+static void info_btn_event_cb(lv_event_t *e) {
+    showInfoScreen();
 }
 
 lv_obj_t* getMainScreen() {
