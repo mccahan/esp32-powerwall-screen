@@ -37,6 +37,7 @@
 #define LV_FONT_MONTSERRAT_16 1
 #define LV_FONT_MONTSERRAT_20 1
 #define LV_FONT_MONTSERRAT_24 1
+#define LV_FONT_MONTSERRAT_28 1
 #define LV_FONT_MONTSERRAT_32 1
 #define LV_FONT_DEFAULT &lv_font_montserrat_16
 
@@ -59,6 +60,7 @@
 #define LV_USE_SWITCH 1
 #define LV_USE_TEXTAREA 1
 #define LV_USE_TABLE 1
+#define LV_USE_SPINNER 1
 
 /* Others */
 #define LV_USE_ANIMATION 1

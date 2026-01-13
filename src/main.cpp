@@ -36,25 +36,58 @@ Arduino_ST7701_RGBPanel *gfx = new Arduino_ST7701_RGBPanel(
 #define TFT_WIDTH 480
 #define TFT_HEIGHT 480
 
+// Theme colors (matching ESPHome config)
+#define COLOR_BG        0x0A0C10
+#define COLOR_WHITE     0xFFFFFF
+#define COLOR_GRID      0x8A8A8A
+#define COLOR_SOLAR     0xFFD54A
+#define COLOR_HOME      0x4FC3F7
+#define COLOR_BATTERY   0x64DD17
+#define COLOR_BAR_BG    0x16181C
+#define COLOR_BAR_FILL  0x22C55E
+
 // LVGL display buffer
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t *disp_draw_buf;
 static lv_disp_drv_t disp_drv;
 
-// UI labels for status updates
-static lv_obj_t *status_label = nullptr;
-static lv_obj_t *ip_label = nullptr;
+// UI elements - Main dashboard
+static lv_obj_t *main_screen = nullptr;
+static lv_obj_t *boot_screen = nullptr;
+static lv_obj_t *boot_spinner = nullptr;
+
+// Power value labels
+static lv_obj_t *lbl_solar_val = nullptr;
+static lv_obj_t *lbl_grid_val = nullptr;
+static lv_obj_t *lbl_home_val = nullptr;
+static lv_obj_t *lbl_batt_val = nullptr;
+
+// Section title labels
+static lv_obj_t *lbl_solar_title = nullptr;
+static lv_obj_t *lbl_grid_title = nullptr;
+static lv_obj_t *lbl_home_title = nullptr;
+static lv_obj_t *lbl_batt_title = nullptr;
+
+// SOC elements
+static lv_obj_t *lbl_soc = nullptr;
+static lv_obj_t *bar_soc = nullptr;
+
+// Status/WiFi label
+static lv_obj_t *lbl_status = nullptr;
 
 // Improv WiFi state
 static improv::State improv_state = improv::STATE_AUTHORIZED;
-static improv::Error improv_error = improv::ERROR_NONE;
 static uint8_t improv_buffer[256];
 static size_t improv_buffer_pos = 0;
 
 // WiFi connection state
 static bool wifi_connecting = false;
 static unsigned long wifi_connect_start = 0;
-static const unsigned long WIFI_CONNECT_TIMEOUT = 30000; // 30 seconds
+static const unsigned long WIFI_CONNECT_TIMEOUT = 30000;
+
+// Boot screen timeout
+static unsigned long boot_start_time = 0;
+static const unsigned long BOOT_SCREEN_TIMEOUT = 5000; // 5 seconds
 
 // Preferences for storing WiFi credentials
 Preferences preferences;
@@ -64,7 +97,11 @@ void setupDisplay();
 void setupLVGL();
 void setupImprovWiFi();
 void createUI();
-void updateStatusUI(const char* status, uint32_t color = 0x00FF00);
+void createBootScreen();
+void createMainDashboard();
+void showBootScreen();
+void hideBootScreen();
+void updateStatusLabel(const char* status);
 void loopImprov();
 void handleImprovCommand(improv::ImprovCommand cmd);
 void sendImprovState();
@@ -101,8 +138,9 @@ void setup() {
     // Create UI
     createUI();
 
-    // Show initial status
-    updateStatusUI("Initializing...", 0xFFFF00);
+    // Show boot screen initially
+    showBootScreen();
+    boot_start_time = millis();
     lv_timer_handler();
 
     // Check PSRAM
@@ -117,7 +155,6 @@ void setup() {
     String saved_ssid = "";
     String saved_pass = "";
 
-    // Open in read-write mode to create namespace if it doesn't exist
     if (preferences.begin("wifi", false)) {
         if (preferences.isKey("ssid")) {
             saved_ssid = preferences.getString("ssid", "");
@@ -127,33 +164,32 @@ void setup() {
     }
 
     if (saved_ssid.length() > 0) {
-        updateStatusUI("Connecting to saved WiFi...", 0xFFFF00);
+        updateStatusLabel("Connecting to WiFi...");
         lv_timer_handler();
         connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
     } else {
-        updateStatusUI("Waiting for WiFi config\nUse ESP Web Tools", 0x00FFFF);
+        updateStatusLabel("Configure WiFi via\nESP Web Tools");
     }
 }
 
 void loop() {
-    // Handle LVGL tasks
     lv_timer_handler();
-
-    // Handle Improv WiFi serial protocol
     loopImprov();
-
-    // Check WiFi connection progress
     checkWiFiConnection();
+
+    // Check boot screen timeout
+    if (boot_screen && !lv_obj_has_flag(boot_screen, LV_OBJ_FLAG_HIDDEN)) {
+        if (millis() - boot_start_time > BOOT_SCREEN_TIMEOUT) {
+            hideBootScreen();
+        }
+    }
 
     delay(5);
 }
 
 void setupDisplay() {
-    // Initialize the display with 16MHz clock
     gfx->begin(16000000);
     gfx->fillScreen(BLACK);
-
-    // Setup backlight
     pinMode(GFX_BL, OUTPUT);
     digitalWrite(GFX_BL, HIGH);
 }
@@ -161,7 +197,6 @@ void setupDisplay() {
 void setupLVGL() {
     lv_init();
 
-    // Allocate LVGL draw buffer from internal RAM
     size_t buf_size = TFT_WIDTH * 200;
     disp_draw_buf = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * buf_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
 
@@ -175,7 +210,6 @@ void setupLVGL() {
 
     lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, NULL, buf_size);
 
-    // Initialize display driver
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res = TFT_WIDTH;
     disp_drv.ver_res = TFT_HEIGHT;
@@ -187,45 +221,160 @@ void setupLVGL() {
 void setupImprovWiFi() {
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
-
-    // Set initial state - authorized and ready to receive credentials
     improv_state = improv::STATE_AUTHORIZED;
     sendImprovState();
 }
 
 void createUI() {
-    // Create main screen
-    lv_obj_t *scr = lv_obj_create(NULL);
-    lv_scr_load(scr);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
-
-    // Title
-    lv_obj_t *title = lv_label_create(scr);
-    lv_label_set_text(title, "Powerwall Display");
-    lv_obj_set_style_text_color(title, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_32, 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 40);
-
-    // Status label
-    status_label = lv_label_create(scr);
-    lv_label_set_text(status_label, "Initializing...");
-    lv_obj_set_style_text_color(status_label, lv_color_hex(0x00FF00), 0);
-    lv_obj_set_style_text_font(status_label, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_align(status_label, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(status_label, LV_ALIGN_CENTER, 0, 0);
-
-    // IP address label
-    ip_label = lv_label_create(scr);
-    lv_label_set_text(ip_label, "");
-    lv_obj_set_style_text_color(ip_label, lv_color_hex(0x00FFFF), 0);
-    lv_obj_set_style_text_font(ip_label, &lv_font_montserrat_16, 0);
-    lv_obj_align(ip_label, LV_ALIGN_CENTER, 0, 60);
+    createMainDashboard();
+    createBootScreen();
 }
 
-void updateStatusUI(const char* status, uint32_t color) {
-    if (status_label) {
-        lv_label_set_text(status_label, status);
-        lv_obj_set_style_text_color(status_label, lv_color_hex(color), 0);
+void createMainDashboard() {
+    // Main screen with dark background
+    main_screen = lv_obj_create(NULL);
+    lv_obj_set_style_bg_color(main_screen, lv_color_hex(COLOR_BG), 0);
+    lv_obj_clear_flag(main_screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_scr_load(main_screen);
+
+    // ========== SOLAR (top center) ==========
+    lbl_solar_title = lv_label_create(main_screen);
+    lv_label_set_text(lbl_solar_title, "SOLAR");
+    lv_obj_set_style_text_color(lbl_solar_title, lv_color_hex(COLOR_SOLAR), 0);
+    lv_obj_set_style_text_font(lbl_solar_title, &lv_font_montserrat_16, 0);
+    lv_obj_align(lbl_solar_title, LV_ALIGN_TOP_MID, 0, 50);
+
+    lbl_solar_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_solar_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_solar_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_solar_val, &lv_font_montserrat_28, 0);
+    lv_obj_align(lbl_solar_val, LV_ALIGN_TOP_MID, 0, 75);
+
+    // ========== GRID (left center) ==========
+    lbl_grid_title = lv_label_create(main_screen);
+    lv_label_set_text(lbl_grid_title, "GRID");
+    lv_obj_set_style_text_color(lbl_grid_title, lv_color_hex(COLOR_GRID), 0);
+    lv_obj_set_style_text_font(lbl_grid_title, &lv_font_montserrat_16, 0);
+    lv_obj_set_pos(lbl_grid_title, 80, 175);
+
+    lbl_grid_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_grid_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_grid_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_grid_val, &lv_font_montserrat_28, 0);
+    lv_obj_set_pos(lbl_grid_val, 55, 200);
+
+    // ========== HOME (right center) ==========
+    lbl_home_title = lv_label_create(main_screen);
+    lv_label_set_text(lbl_home_title, "HOME");
+    lv_obj_set_style_text_color(lbl_home_title, lv_color_hex(COLOR_HOME), 0);
+    lv_obj_set_style_text_font(lbl_home_title, &lv_font_montserrat_16, 0);
+    lv_obj_set_pos(lbl_home_title, 365, 175);
+
+    lbl_home_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_home_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_home_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_home_val, &lv_font_montserrat_28, 0);
+    lv_obj_set_pos(lbl_home_val, 340, 200);
+
+    // ========== BATTERY (bottom center) ==========
+    lbl_batt_title = lv_label_create(main_screen);
+    lv_label_set_text(lbl_batt_title, "BATTERY");
+    lv_obj_set_style_text_color(lbl_batt_title, lv_color_hex(COLOR_BATTERY), 0);
+    lv_obj_set_style_text_font(lbl_batt_title, &lv_font_montserrat_16, 0);
+    lv_obj_align(lbl_batt_title, LV_ALIGN_TOP_MID, 0, 290);
+
+    lbl_batt_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_batt_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_batt_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_batt_val, &lv_font_montserrat_28, 0);
+    lv_obj_align(lbl_batt_val, LV_ALIGN_TOP_MID, 0, 315);
+
+    // ========== SOC Label ==========
+    lbl_soc = lv_label_create(main_screen);
+    lv_label_set_text(lbl_soc, "0%");
+    lv_obj_set_style_text_color(lbl_soc, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_soc, &lv_font_montserrat_28, 0);
+    lv_obj_align(lbl_soc, LV_ALIGN_TOP_MID, 0, 390);
+
+    // ========== SOC Bar ==========
+    bar_soc = lv_bar_create(main_screen);
+    lv_obj_set_size(bar_soc, 316, 13);
+    lv_obj_align(bar_soc, LV_ALIGN_TOP_MID, 0, 430);
+    lv_bar_set_range(bar_soc, 0, 100);
+    lv_bar_set_value(bar_soc, 0, LV_ANIM_OFF);
+
+    // Bar background style
+    lv_obj_set_style_bg_color(bar_soc, lv_color_hex(COLOR_BAR_BG), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(bar_soc, LV_OPA_30, LV_PART_MAIN);
+    lv_obj_set_style_border_width(bar_soc, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(bar_soc, lv_color_hex(0x5A5A5A), LV_PART_MAIN);
+    lv_obj_set_style_radius(bar_soc, 2, LV_PART_MAIN);
+
+    // Bar indicator style
+    lv_obj_set_style_bg_color(bar_soc, lv_color_hex(COLOR_BAR_FILL), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(bar_soc, LV_OPA_COVER, LV_PART_INDICATOR);
+    lv_obj_set_style_radius(bar_soc, 2, LV_PART_INDICATOR);
+
+    // ========== Status/WiFi Label ==========
+    lbl_status = lv_label_create(main_screen);
+    lv_label_set_text(lbl_status, "");
+    lv_obj_set_style_text_color(lbl_status, lv_color_hex(0x6A6A6A), 0);
+    lv_obj_set_style_text_font(lbl_status, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_align(lbl_status, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_width(lbl_status, 480);
+    lv_obj_align(lbl_status, LV_ALIGN_BOTTOM_MID, 0, -10);
+}
+
+void createBootScreen() {
+    // Boot screen overlay
+    boot_screen = lv_obj_create(main_screen);
+    lv_obj_set_size(boot_screen, 480, 480);
+    lv_obj_set_pos(boot_screen, 0, 0);
+    lv_obj_set_style_bg_color(boot_screen, lv_color_hex(COLOR_BG), 0);
+    lv_obj_set_style_bg_opa(boot_screen, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(boot_screen, 0, 0);
+    lv_obj_set_style_radius(boot_screen, 0, 0);
+    lv_obj_clear_flag(boot_screen, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Title on boot screen
+    lv_obj_t *boot_title = lv_label_create(boot_screen);
+    lv_label_set_text(boot_title, "Powerwall Display");
+    lv_obj_set_style_text_color(boot_title, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(boot_title, &lv_font_montserrat_32, 0);
+    lv_obj_align(boot_title, LV_ALIGN_CENTER, 0, -80);
+
+    // Spinner
+    boot_spinner = lv_spinner_create(boot_screen, 1000, 60);
+    lv_obj_set_size(boot_spinner, 80, 80);
+    lv_obj_align(boot_spinner, LV_ALIGN_CENTER, 0, 20);
+    lv_obj_set_style_arc_color(boot_spinner, lv_color_hex(0x313336), LV_PART_MAIN);
+    lv_obj_set_style_arc_width(boot_spinner, 10, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(boot_spinner, lv_color_hex(0x137FEC), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(boot_spinner, 10, LV_PART_INDICATOR);
+
+    // Status label on boot screen
+    lv_obj_t *boot_status = lv_label_create(boot_screen);
+    lv_label_set_text(boot_status, "Connecting...");
+    lv_obj_set_style_text_color(boot_status, lv_color_hex(0x6A6A6A), 0);
+    lv_obj_set_style_text_font(boot_status, &lv_font_montserrat_16, 0);
+    lv_obj_align(boot_status, LV_ALIGN_CENTER, 0, 100);
+}
+
+void showBootScreen() {
+    if (boot_screen) {
+        lv_obj_clear_flag(boot_screen, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void hideBootScreen() {
+    if (boot_screen) {
+        lv_obj_add_flag(boot_screen, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void updateStatusLabel(const char* status) {
+    if (lbl_status) {
+        lv_label_set_text(lbl_status, status);
     }
 }
 
@@ -250,8 +399,6 @@ void loopImprov() {
 
         if (result) {
             improv_buffer[improv_buffer_pos++] = byte;
-
-            // Reset buffer if it gets too large
             if (improv_buffer_pos >= sizeof(improv_buffer)) {
                 improv_buffer_pos = 0;
             }
@@ -264,28 +411,23 @@ void loopImprov() {
 void handleImprovCommand(improv::ImprovCommand cmd) {
     switch (cmd.command) {
         case improv::WIFI_SETTINGS: {
-            // Received WiFi credentials
             improv_state = improv::STATE_PROVISIONING;
             sendImprovState();
 
-            updateStatusUI("Connecting to WiFi...", 0xFFFF00);
+            updateStatusLabel("Connecting to WiFi...");
             lv_timer_handler();
 
-            // Save credentials
             preferences.begin("wifi", false);
             preferences.putString("ssid", cmd.ssid.c_str());
             preferences.putString("password", cmd.password.c_str());
             preferences.end();
 
-            // Connect to WiFi
             connectToWiFi(cmd.ssid.c_str(), cmd.password.c_str());
             break;
         }
 
         case improv::GET_CURRENT_STATE: {
             sendImprovState();
-
-            // If already connected, send the URL
             if (WiFi.status() == WL_CONNECTED) {
                 std::vector<String> urls = {getLocalIP()};
                 sendImprovRPCResponse(improv::GET_CURRENT_STATE, urls);
@@ -305,8 +447,7 @@ void handleImprovCommand(improv::ImprovCommand cmd) {
         }
 
         case improv::GET_WIFI_NETWORKS: {
-            // Scan for WiFi networks
-            updateStatusUI("Scanning WiFi...", 0xFFFF00);
+            updateStatusLabel("Scanning WiFi...");
             lv_timer_handler();
 
             int n = WiFi.scanNetworks();
@@ -325,7 +466,7 @@ void handleImprovCommand(improv::ImprovCommand cmd) {
             sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, networks);
 
             if (improv_state != improv::STATE_PROVISIONED) {
-                updateStatusUI("Waiting for WiFi config\nUse ESP Web Tools", 0x00FFFF);
+                updateStatusLabel("Configure WiFi via\nESP Web Tools");
             }
             break;
         }
@@ -335,7 +476,6 @@ void handleImprovCommand(improv::ImprovCommand cmd) {
             break;
     }
 
-    // Reset buffer after handling command
     improv_buffer_pos = 0;
 }
 
@@ -344,12 +484,11 @@ void sendImprovState() {
         'I', 'M', 'P', 'R', 'O', 'V',
         improv::IMPROV_SERIAL_VERSION,
         improv::TYPE_CURRENT_STATE,
-        1,  // data length
+        1,
         improv_state,
-        0   // checksum placeholder
+        0
     };
 
-    // Calculate checksum
     uint8_t checksum = 0;
     for (size_t i = 0; i < sizeof(data) - 1; i++) {
         checksum += data[i];
@@ -360,18 +499,15 @@ void sendImprovState() {
 }
 
 void sendImprovError(improv::Error error) {
-    improv_error = error;
-
     uint8_t data[] = {
         'I', 'M', 'P', 'R', 'O', 'V',
         improv::IMPROV_SERIAL_VERSION,
         improv::TYPE_ERROR_STATE,
-        1,  // data length
+        1,
         error,
-        0   // checksum placeholder
+        0
     };
 
-    // Calculate checksum
     uint8_t checksum = 0;
     for (size_t i = 0; i < sizeof(data) - 1; i++) {
         checksum += data[i];
@@ -384,7 +520,6 @@ void sendImprovError(improv::Error error) {
 void sendImprovRPCResponse(improv::Command cmd, const std::vector<String> &data) {
     std::vector<uint8_t> response = improv::build_rpc_response(cmd, data, false);
 
-    // Build full packet with header
     std::vector<uint8_t> packet;
     packet.push_back('I');
     packet.push_back('M');
@@ -400,7 +535,6 @@ void sendImprovRPCResponse(improv::Command cmd, const std::vector<String> &data)
         packet.push_back(b);
     }
 
-    // Calculate and append checksum
     uint8_t checksum = 0;
     for (auto &b : packet) {
         checksum += b;
@@ -413,7 +547,6 @@ void sendImprovRPCResponse(improv::Command cmd, const std::vector<String> &data)
 void connectToWiFi(const char* ssid, const char* password) {
     WiFi.disconnect();
     delay(100);
-
     WiFi.begin(ssid, password);
     wifi_connecting = true;
     wifi_connect_start = millis();
@@ -429,19 +562,15 @@ void checkWiFiConnection() {
         improv_state = improv::STATE_PROVISIONED;
         sendImprovState();
 
-        // Send success response with URL
         String ip = getLocalIP();
         std::vector<String> urls = {ip};
         sendImprovRPCResponse(improv::WIFI_SETTINGS, urls);
 
-        // Update UI
-        String status = "WiFi Connected!\nSSID: " + WiFi.SSID();
-        updateStatusUI(status.c_str(), 0x00FF00);
+        // Hide boot screen and show dashboard
+        hideBootScreen();
 
-        if (ip_label) {
-            String ipText = "IP: " + ip;
-            lv_label_set_text(ip_label, ipText.c_str());
-        }
+        String status = "WiFi: " + WiFi.SSID() + " | IP: " + ip;
+        updateStatusLabel(status.c_str());
 
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
     }
@@ -451,8 +580,7 @@ void checkWiFiConnection() {
         sendImprovState();
         sendImprovError(improv::ERROR_UNABLE_TO_CONNECT);
 
-        updateStatusUI("WiFi connection failed!\nTry again via ESP Web Tools", 0xFF0000);
-
+        updateStatusLabel("WiFi failed - Configure via ESP Web Tools");
         Serial.println("WiFi connection timeout");
     }
 }
@@ -462,4 +590,60 @@ String getLocalIP() {
         return WiFi.localIP().toString();
     }
     return "";
+}
+
+// ============== Power Value Update Functions ==============
+// These will be called when MQTT data arrives
+
+void updateSolarValue(float watts) {
+    if (lbl_solar_val) {
+        char buf[24];
+        float kw = watts / 1000.0f;
+        snprintf(buf, sizeof(buf), "%.1f kW", kw);
+        lv_label_set_text(lbl_solar_val, buf);
+    }
+}
+
+void updateGridValue(float watts) {
+    if (lbl_grid_val) {
+        char buf[24];
+        float kw = watts / 1000.0f;
+        snprintf(buf, sizeof(buf), "%.1f kW", kw);
+        lv_label_set_text(lbl_grid_val, buf);
+    }
+}
+
+void updateHomeValue(float watts) {
+    if (lbl_home_val) {
+        char buf[24];
+        float kw = watts / 1000.0f;
+        snprintf(buf, sizeof(buf), "%.1f kW", kw);
+        lv_label_set_text(lbl_home_val, buf);
+    }
+}
+
+void updateBatteryValue(float watts) {
+    if (lbl_batt_val) {
+        char buf[24];
+        float kw = watts / 1000.0f;
+        snprintf(buf, sizeof(buf), "%.1f kW", kw);
+        lv_label_set_text(lbl_batt_val, buf);
+    }
+}
+
+void updateSOC(float soc_percent) {
+    // Adjust for 5% reserve like ESPHome config
+    float adjusted = (soc_percent / 0.95f) - (5.0f / 0.95f);
+    if (adjusted < 0) adjusted = 0;
+    if (adjusted > 100) adjusted = 100;
+
+    if (lbl_soc) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d%%", (int)roundf(adjusted));
+        lv_label_set_text(lbl_soc, buf);
+    }
+
+    if (bar_soc) {
+        lv_bar_set_value(bar_soc, (int)roundf(adjusted), LV_ANIM_OFF);
+    }
 }
