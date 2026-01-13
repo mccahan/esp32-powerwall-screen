@@ -20,6 +20,7 @@ void updateSOC(float soc_percent);
 // Animation updates (called from main loop)
 void updateDataRxPulse();
 void updateMQTTStatus();
+void updatePowerFlowAnimation();
 
 // Timing variable for data RX indicator
 extern unsigned long last_data_ms;

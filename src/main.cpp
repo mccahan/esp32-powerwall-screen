@@ -174,6 +174,7 @@ void loop() {
     checkWiFiConnection();
     updateDataRxPulse();
     updateMQTTStatus();
+    updatePowerFlowAnimation();
 
     // Update info screen data if visible
     if (isInfoScreenVisible()) {
