@@ -159,14 +159,13 @@ void PowerwallMQTTClient::onMqttDisconnect(AsyncMqttClientDisconnectReason reaso
 
 void PowerwallMQTTClient::onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total) {
     // Limit message size to prevent stack overflow
-    const size_t MAX_MESSAGE_SIZE = 64;
-    if (len > MAX_MESSAGE_SIZE) {
+    if (len > MAX_MQTT_MESSAGE_SIZE) {
         Serial.printf("MQTT message too large (%d bytes), ignoring\n", len);
         return;
     }
     
     // Convert payload to null-terminated string
-    char message[MAX_MESSAGE_SIZE + 1];
+    char message[MAX_MQTT_MESSAGE_SIZE + 1];
     memcpy(message, payload, len);
     message[len] = '\0';
     

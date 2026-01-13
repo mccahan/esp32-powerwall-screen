@@ -5,6 +5,9 @@
 #include <ESPAsyncWebServer.h>
 #include "mqtt_client.h"
 
+// Constants
+#define MAX_JSON_PAYLOAD_SIZE 1024
+
 class PowerwallWebServer {
 public:
     PowerwallWebServer();

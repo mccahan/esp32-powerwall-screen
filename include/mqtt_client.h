@@ -5,6 +5,9 @@
 #include <AsyncMqttClient.h>
 #include <Preferences.h>
 
+// Constants
+#define MAX_MQTT_MESSAGE_SIZE 64
+
 // MQTT Configuration structure
 struct MQTTConfig {
     String host;

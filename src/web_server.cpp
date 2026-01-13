@@ -28,12 +28,12 @@ void PowerwallWebServer::setupRoutes() {
     server.on("/api/mqtt", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
         [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
             // Validate content length
-            if (total > 1024) {
+            if (total > MAX_JSON_PAYLOAD_SIZE) {
                 request->send(413, "application/json", "{\"error\":\"Payload too large\"}");
                 return;
             }
             
-            DynamicJsonDocument doc(1024);
+            StaticJsonDocument<MAX_JSON_PAYLOAD_SIZE> doc;
             DeserializationError error = deserializeJson(doc, data, len);
             
             if (error) {
