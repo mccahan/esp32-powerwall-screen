@@ -93,6 +93,18 @@ These topics are published by [pypowerwall](https://github.com/jasonacox/pypower
 esp32-powerwall-screen/
 ├── src/
 │   ├── main.cpp           # Main application code
+│   └── ui_assets/         # Generated UI assets (fonts & images)
+│       ├── space_bold_21.c      # SpaceGrotesk font (21px)
+│       ├── space_bold_30.c      # SpaceGrotesk font (30px)
+│       ├── layout_img.c         # Background layout with icons
+│       ├── grid_offline_img.c   # Grid offline overlay
+│       └── ui_assets.h          # Asset declarations
+├── assets/                # Source assets (fonts & icons)
+│   ├── SpaceGrotesk-*.ttf       # SpaceGrotesk font family
+│   ├── layout.svg               # UI layout with power icons
+│   └── grid_offline.svg         # Grid offline indicator
+├── include/
+│   └── lv_conf.h          # LVGL configuration
 │   ├── mqtt_client.cpp    # Async MQTT client implementation
 │   └── web_server.cpp     # Web server for configuration
 ├── include/
@@ -103,6 +115,34 @@ esp32-powerwall-screen/
 └── .github/
     └── workflows/
         └── build.yml      # CI/CD pipeline
+```
+
+### Regenerating UI Assets
+
+If you modify fonts or icons in the `assets/` directory, regenerate the LVGL assets:
+
+```bash
+# Install Node.js conversion tools
+npm install -g lv_font_conv
+
+# Install Python dependencies for image conversion
+pip3 install cairosvg pillow
+
+# Convert fonts (already done, included in src/ui_assets/)
+lv_font_conv --no-compress --no-prefilter --bpp 4 --size 21 \
+  --font assets/SpaceGrotesk-Bold.ttf --range 0x20-0x7F \
+  --format lvgl -o src/ui_assets/space_bold_21.c
+
+lv_font_conv --no-compress --no-prefilter --bpp 4 --size 30 \
+  --font assets/SpaceGrotesk-Bold.ttf --range 0x20-0x7F \
+  --format lvgl -o src/ui_assets/space_bold_30.c
+
+# Convert SVG icons to C arrays using the provided script
+python3 tools/convert_svg_to_lvgl.py assets/layout.svg \
+  src/ui_assets/layout_img.c layout_img 480 480
+
+python3 tools/convert_svg_to_lvgl.py assets/grid_offline.svg \
+  src/ui_assets/grid_offline_img.c grid_offline_img 79 81
 ```
 
 ### Building

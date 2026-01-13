@@ -4,6 +4,7 @@
 #include <Arduino_GFX_Library.h>
 #include <improv.h>
 #include <Preferences.h>
+#include "ui_assets/ui_assets.h"
 #include "mqtt_client.h"
 #include "web_server.h"
 
@@ -38,6 +39,26 @@ Arduino_ST7701_RGBPanel *gfx = new Arduino_ST7701_RGBPanel(
 #define TFT_WIDTH 480
 #define TFT_HEIGHT 480
 
+// UI Layout Positions (from powerwall-monitor.yml design)
+#define LABEL_HEIGHT 28
+#define LABEL_HEIGHT_LARGE 39
+
+#define BATTERY_VAL_Y 345
+#define SOLAR_VAL_Y 111
+#define GRID_VAL_X 62
+#define GRID_VAL_Y 240
+#define GRID_VAL_WIDTH 100
+#define HOME_VAL_X 318
+#define HOME_VAL_Y 240
+#define HOME_VAL_WIDTH 100
+#define SOC_LABEL_Y 413
+#define SOC_BAR_X 82
+#define SOC_BAR_Y 454
+#define SOC_BAR_WIDTH 316
+#define SOC_BAR_HEIGHT 13
+#define GRID_OFFLINE_X 77
+#define GRID_OFFLINE_Y 159
+
 // Theme colors (matching ESPHome config)
 #define COLOR_BG        0x0A0C10
 #define COLOR_WHITE     0xFFFFFF
@@ -65,15 +86,13 @@ static lv_obj_t *lbl_grid_val = nullptr;
 static lv_obj_t *lbl_home_val = nullptr;
 static lv_obj_t *lbl_batt_val = nullptr;
 
-// Section title labels
-static lv_obj_t *lbl_solar_title = nullptr;
-static lv_obj_t *lbl_grid_title = nullptr;
-static lv_obj_t *lbl_home_title = nullptr;
-static lv_obj_t *lbl_batt_title = nullptr;
-
 // SOC elements
 static lv_obj_t *lbl_soc = nullptr;
 static lv_obj_t *bar_soc = nullptr;
+
+// Layout background and overlays
+static lv_obj_t *img_layout = nullptr;
+static lv_obj_t *img_grid_offline = nullptr;
 
 // Status/WiFi label
 static lv_obj_t *lbl_status = nullptr;
@@ -271,69 +290,69 @@ void createMainDashboard() {
     lv_obj_clear_flag(main_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_scr_load(main_screen);
 
-    // ========== SOLAR (top center) ==========
-    lbl_solar_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_solar_title, "SOLAR");
-    lv_obj_set_style_text_color(lbl_solar_title, lv_color_hex(COLOR_SOLAR), 0);
-    lv_obj_set_style_text_font(lbl_solar_title, &lv_font_montserrat_16, 0);
-    lv_obj_align(lbl_solar_title, LV_ALIGN_TOP_MID, 0, 50);
+    // ========== Layout Background Image (must be created FIRST so labels appear on top) ==========
+    img_layout = lv_img_create(main_screen);
+    lv_img_set_src(img_layout, &layout_img);
+    lv_obj_set_pos(img_layout, 0, 0);
+    lv_obj_set_size(img_layout, TFT_WIDTH, TFT_HEIGHT);
+    lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
 
-    lbl_solar_val = lv_label_create(main_screen);
-    lv_label_set_text(lbl_solar_val, "0.0 kW");
-    lv_obj_set_style_text_color(lbl_solar_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_solar_val, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_solar_val, LV_ALIGN_TOP_MID, 0, 75);
-
-    // ========== GRID (left center) ==========
-    lbl_grid_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_grid_title, "GRID");
-    lv_obj_set_style_text_color(lbl_grid_title, lv_color_hex(COLOR_GRID), 0);
-    lv_obj_set_style_text_font(lbl_grid_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_grid_title, 80, 175);
-
-    lbl_grid_val = lv_label_create(main_screen);
-    lv_label_set_text(lbl_grid_val, "0.0 kW");
-    lv_obj_set_style_text_color(lbl_grid_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_grid_val, &lv_font_montserrat_28, 0);
-    lv_obj_set_pos(lbl_grid_val, 55, 200);
-
-    // ========== HOME (right center) ==========
-    lbl_home_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_home_title, "HOME");
-    lv_obj_set_style_text_color(lbl_home_title, lv_color_hex(COLOR_HOME), 0);
-    lv_obj_set_style_text_font(lbl_home_title, &lv_font_montserrat_16, 0);
-    lv_obj_set_pos(lbl_home_title, 365, 175);
-
-    lbl_home_val = lv_label_create(main_screen);
-    lv_label_set_text(lbl_home_val, "0.0 kW");
-    lv_obj_set_style_text_color(lbl_home_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_home_val, &lv_font_montserrat_28, 0);
-    lv_obj_set_pos(lbl_home_val, 340, 200);
-
-    // ========== BATTERY (bottom center) ==========
-    lbl_batt_title = lv_label_create(main_screen);
-    lv_label_set_text(lbl_batt_title, "BATTERY");
-    lv_obj_set_style_text_color(lbl_batt_title, lv_color_hex(COLOR_BATTERY), 0);
-    lv_obj_set_style_text_font(lbl_batt_title, &lv_font_montserrat_16, 0);
-    lv_obj_align(lbl_batt_title, LV_ALIGN_TOP_MID, 0, 290);
-
+    // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
+    // Battery value - centered at bottom
     lbl_batt_val = lv_label_create(main_screen);
     lv_label_set_text(lbl_batt_val, "0.0 kW");
     lv_obj_set_style_text_color(lbl_batt_val, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_batt_val, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_batt_val, LV_ALIGN_TOP_MID, 0, 315);
+    lv_obj_set_style_text_font(lbl_batt_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_batt_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_batt_val, 0, BATTERY_VAL_Y);
+    lv_obj_set_width(lbl_batt_val, TFT_WIDTH);
+    lv_obj_set_height(lbl_batt_val, LABEL_HEIGHT);
 
-    // ========== SOC Label ==========
+    // Solar value - centered at top
+    lbl_solar_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_solar_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_solar_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_solar_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_solar_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_solar_val, 0, SOLAR_VAL_Y);
+    lv_obj_set_width(lbl_solar_val, TFT_WIDTH);
+    lv_obj_set_height(lbl_solar_val, LABEL_HEIGHT);
+
+    // Grid value - left side
+    lbl_grid_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_grid_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_grid_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_grid_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_grid_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_grid_val, GRID_VAL_X, GRID_VAL_Y);
+    lv_obj_set_width(lbl_grid_val, GRID_VAL_WIDTH);
+    lv_obj_set_height(lbl_grid_val, LABEL_HEIGHT);
+
+    // Home value - right side
+    lbl_home_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_home_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_home_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_home_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_home_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_home_val, HOME_VAL_X, HOME_VAL_Y);
+    lv_obj_set_width(lbl_home_val, HOME_VAL_WIDTH);
+    lv_obj_set_height(lbl_home_val, LABEL_HEIGHT);
+
+    // ========== SOC Label (using custom font space_bold_30) ==========
+    // SOC percentage - centered above battery bar
     lbl_soc = lv_label_create(main_screen);
     lv_label_set_text(lbl_soc, "0%");
     lv_obj_set_style_text_color(lbl_soc, lv_color_hex(COLOR_WHITE), 0);
-    lv_obj_set_style_text_font(lbl_soc, &lv_font_montserrat_28, 0);
-    lv_obj_align(lbl_soc, LV_ALIGN_TOP_MID, 0, 390);
+    lv_obj_set_style_text_font(lbl_soc, &space_bold_30, 0);
+    lv_obj_set_style_text_align(lbl_soc, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_soc, 0, SOC_LABEL_Y);
+    lv_obj_set_width(lbl_soc, TFT_WIDTH);
+    lv_obj_set_height(lbl_soc, LABEL_HEIGHT_LARGE);
 
     // ========== SOC Bar ==========
     bar_soc = lv_bar_create(main_screen);
-    lv_obj_set_size(bar_soc, 316, 13);
-    lv_obj_align(bar_soc, LV_ALIGN_TOP_MID, 0, 430);
+    lv_obj_set_size(bar_soc, SOC_BAR_WIDTH, SOC_BAR_HEIGHT);
+    lv_obj_set_pos(bar_soc, SOC_BAR_X, SOC_BAR_Y);
     lv_bar_set_range(bar_soc, 0, 100);
     lv_bar_set_value(bar_soc, 0, LV_ANIM_OFF);
 
@@ -349,13 +368,19 @@ void createMainDashboard() {
     lv_obj_set_style_bg_opa(bar_soc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(bar_soc, 2, LV_PART_INDICATOR);
 
+    // ========== Grid Offline Overlay ==========
+    img_grid_offline = lv_img_create(main_screen);
+    lv_img_set_src(img_grid_offline, &grid_offline_img);
+    lv_obj_set_pos(img_grid_offline, GRID_OFFLINE_X, GRID_OFFLINE_Y);
+    lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
+
     // ========== Status/WiFi Label ==========
     lbl_status = lv_label_create(main_screen);
     lv_label_set_text(lbl_status, "");
     lv_obj_set_style_text_color(lbl_status, lv_color_hex(0x6A6A6A), 0);
     lv_obj_set_style_text_font(lbl_status, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_align(lbl_status, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_status, 480);
+    lv_obj_set_width(lbl_status, TFT_WIDTH);
     lv_obj_align(lbl_status, LV_ALIGN_BOTTOM_MID, 0, -10);
 }
 

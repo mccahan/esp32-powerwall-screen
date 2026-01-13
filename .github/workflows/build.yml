@@ -44,6 +44,15 @@ jobs:
         python -m pip install --upgrade pip
         pip install platformio
     
+    - name: Install dependencies for SVG conversion
+      run: |
+        pip install cairosvg pillow
+    
+    - name: Generate UI assets from SVG files
+      run: |
+        python3 tools/convert_svg_to_lvgl.py assets/layout.svg src/ui_assets/layout_img.c layout_img 480 480
+        python3 tools/convert_svg_to_lvgl.py assets/grid_offline.svg src/ui_assets/grid_offline_img.c grid_offline_img 79 81
+    
     - name: Build firmware
       run: pio run
     
