@@ -94,6 +94,7 @@ static void info_btn_event_cb(lv_event_t *e);
 // Timing variables for pulse animation
 unsigned long last_data_ms = 0;
 static unsigned long last_pulse_ms = 0;
+static unsigned long last_pulse_update_ms = 0;  // Throttle pulse updates
 
 // MQTT status monitoring
 static unsigned long last_mqtt_status_update = 0;
@@ -290,6 +291,13 @@ void updateDataRxPulse() {
     if (!dot_data_rx) return;
     
     const unsigned long now = millis();
+    
+    // Throttle updates to ~30 FPS (33ms between updates)
+    if (now - last_pulse_update_ms < 33) {
+        return;
+    }
+    last_pulse_update_ms = now;
+    
     const unsigned long since_data = now - last_data_ms;
     const unsigned long since_pulse = now - last_pulse_ms;
     
@@ -611,10 +619,11 @@ void updatePowerFlowAnimation() {
         for (auto dot : all_dots) {
             lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
         }
+        g_last_anim_ms = 0;  // Reset animation time
         return;
     }
 
-    // Calculate elapsed time
+    // Calculate elapsed time and throttle updates to ~30 FPS
     const unsigned long now = millis();
     const unsigned long last_anim = g_last_anim_ms;
     unsigned long elapsed_ms;
@@ -623,6 +632,11 @@ void updatePowerFlowAnimation() {
         elapsed_ms = DEFAULT_FRAME_MS;
     } else {
         elapsed_ms = now - last_anim;
+    }
+    
+    // Throttle to ~30 FPS (33ms minimum between updates)
+    if (elapsed_ms < DEFAULT_FRAME_MS && last_anim != 0) {
+        return;  // Skip this update, not enough time has passed
     }
     
     const float dt_seconds = (float)elapsed_ms / 1000.0f;

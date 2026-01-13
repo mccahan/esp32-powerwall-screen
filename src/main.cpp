@@ -188,7 +188,7 @@ void loop() {
         }
     }
 
-    delay(5);
+    delay(10);  // 10ms delay for ~100 FPS main loop (LVGL handles actual refresh rate)
 }
 
 void setupDisplay() {
