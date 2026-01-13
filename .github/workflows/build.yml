@@ -50,9 +50,18 @@ jobs:
     
     - name: Generate UI assets from SVG files
       run: |
-        python3 tools/convert_svg_to_lvgl.py assets/layout.svg src/ui_assets/layout_img.c layout_img 480 480
-        python3 tools/convert_svg_to_lvgl.py assets/grid_offline.svg src/ui_assets/grid_offline_img.c grid_offline_img 79 81
-        python3 tools/convert_svg_to_lvgl.py assets/info_icon.svg src/ui_assets/info_icon_img.c info_icon 55 55
+        for svg in assets/*.svg; do
+          # Extract filename without path and extension
+          basename=$(basename "$svg" .svg)
+          # Extract width and height from SVG (portable sed)
+          width=$(sed -n 's/.*width="\([0-9]*\)".*/\1/p' "$svg" | head -1)
+          height=$(sed -n 's/.*height="\([0-9]*\)".*/\1/p' "$svg" | head -1)
+          # Generate output path and variable name
+          output="src/ui_assets/${basename}_img.c"
+          varname="${basename}_img"
+          echo "Converting $svg -> $output (${width}x${height})"
+          python3 tools/convert_svg_to_lvgl.py "$svg" "$output" "$varname" "$width" "$height"
+        done
     
     - name: Build firmware
       run: pio run
