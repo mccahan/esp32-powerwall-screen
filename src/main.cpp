@@ -4,9 +4,8 @@
 #include <Arduino_GFX_Library.h>
 #include <improv.h>
 #include <Preferences.h>
-#include <ESPAsyncWebServer.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
+#include "mqtt_client.h"
+#include "web_server.h"
 
 // Device info
 #define DEVICE_NAME "Powerwall Display"
@@ -99,24 +98,6 @@ static unsigned long last_tick = 0;
 // Preferences for storing WiFi credentials
 Preferences preferences;
 
-// MQTT Configuration
-struct MQTTConfig {
-    String host;
-    int port;
-    String user;
-    String password;
-    String topic_prefix;
-};
-
-MQTTConfig mqtt_config;
-WiFiClient espClient;
-PubSubClient mqtt_client(espClient);
-AsyncWebServer web_server(80);
-
-// MQTT reconnection tracking
-unsigned long last_mqtt_reconnect = 0;
-const unsigned long MQTT_RECONNECT_INTERVAL = 5000; // 5 seconds
-
 // Forward declarations
 void setupDisplay();
 void setupLVGL();
@@ -136,15 +117,12 @@ void connectToWiFi(const char* ssid, const char* password);
 void checkWiFiConnection();
 String getLocalIP();
 
-// Web server functions
-void setupWebServer();
-void loadMQTTConfig();
-void saveMQTTConfig();
-
-// MQTT functions
-void setupMQTT();
-void reconnectMQTT();
-void mqttCallback(char* topic, byte* payload, unsigned int length);
+// Power value update functions (forward declarations)
+void updateSolarValue(float watts);
+void updateGridValue(float watts);
+void updateHomeValue(float watts);
+void updateBatteryValue(float watts);
+void updateSOC(float soc_percent);
 
 // LVGL display flush callback
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
@@ -205,6 +183,19 @@ void setup() {
     } else {
         updateStatusLabel("Configure WiFi via\nESP Web Tools");
     }
+    
+    // Setup MQTT callbacks
+    mqttClient.setSolarCallback(updateSolarValue);
+    mqttClient.setGridCallback(updateGridValue);
+    mqttClient.setHomeCallback(updateHomeValue);
+    mqttClient.setBatteryCallback(updateBatteryValue);
+    mqttClient.setSOCCallback(updateSOC);
+    
+    // Initialize MQTT client (will load config from flash)
+    mqttClient.begin();
+    
+    // Start web server (will be accessible after WiFi connects)
+    webServer.begin();
 }
 
 void loop() {
@@ -629,7 +620,7 @@ void checkWiFiConnection() {
         // Hide boot screen and show dashboard
         hideBootScreen();
 
-        String status = "WiFi: " + WiFi.SSID() + " | IP: " + ip;
+        String status = "WiFi: " + WiFi.SSID() + " | Config: http://" + ip;
         updateStatusLabel(status.c_str());
 
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
@@ -650,255 +641,6 @@ String getLocalIP() {
         return WiFi.localIP().toString();
     }
     return "";
-}
-
-// ============== MQTT Configuration Functions ==============
-
-void loadMQTTConfig() {
-    preferences.begin("mqtt", true); // Read-only
-    mqtt_config.host = preferences.getString("host", "");
-    mqtt_config.port = preferences.getInt("port", 1883);
-    mqtt_config.user = preferences.getString("user", "");
-    mqtt_config.password = preferences.getString("password", "");
-    mqtt_config.topic_prefix = preferences.getString("prefix", "pypowerwall/");
-    preferences.end();
-    
-    Serial.printf("MQTT Config loaded - Host: %s, Port: %d, Prefix: %s\n", 
-                  mqtt_config.host.c_str(), mqtt_config.port, mqtt_config.topic_prefix.c_str());
-}
-
-void saveMQTTConfig() {
-    preferences.begin("mqtt", false);
-    preferences.putString("host", mqtt_config.host);
-    preferences.putInt("port", mqtt_config.port);
-    preferences.putString("user", mqtt_config.user);
-    preferences.putString("password", mqtt_config.password);
-    preferences.putString("prefix", mqtt_config.topic_prefix);
-    preferences.end();
-    
-    Serial.println("MQTT Config saved to flash");
-}
-
-// ============== Web Server Functions ==============
-
-void setupWebServer() {
-    // Root page - redirect to config
-    web_server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->redirect("/config");
-    });
-    
-    // Configuration page
-    web_server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request) {
-        String html = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MQTT Configuration</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #1a1a1a;
-            color: #e0e0e0;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: #2a2a2a;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        h1 {
-            color: #4FC3F7;
-            text-align: center;
-            margin-top: 0;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: #b0b0b0;
-            font-weight: bold;
-        }
-        input[type="text"],
-        input[type="number"],
-        input[type="password"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #444;
-            border-radius: 4px;
-            background: #1a1a1a;
-            color: #e0e0e0;
-            box-sizing: border-box;
-            font-size: 16px;
-        }
-        input[type="text"]:focus,
-        input[type="number"]:focus,
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #4FC3F7;
-        }
-        .button {
-            width: 100%;
-            padding: 12px;
-            background: #4FC3F7;
-            color: #1a1a1a;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        .button:hover {
-            background: #29B6F6;
-        }
-        .status {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 4px;
-            text-align: center;
-            display: none;
-        }
-        .status.success {
-            background: #2e7d32;
-            color: #fff;
-        }
-        .status.error {
-            background: #c62828;
-            color: #fff;
-        }
-        .info {
-            margin-top: 20px;
-            padding: 15px;
-            background: #1565c0;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>⚡ MQTT Configuration</h1>
-        <form id="mqttForm">
-            <div class="form-group">
-                <label for="host">MQTT Host:</label>
-                <input type="text" id="host" name="host" value=")rawliteral" + mqtt_config.host + R"rawliteral(" required>
-            </div>
-            <div class="form-group">
-                <label for="port">MQTT Port:</label>
-                <input type="number" id="port" name="port" value=")rawliteral" + String(mqtt_config.port) + R"rawliteral(" required>
-            </div>
-            <div class="form-group">
-                <label for="user">MQTT Username:</label>
-                <input type="text" id="user" name="user" value=")rawliteral" + mqtt_config.user + R"rawliteral(">
-            </div>
-            <div class="form-group">
-                <label for="password">MQTT Password:</label>
-                <input type="password" id="password" name="password" value=")rawliteral" + mqtt_config.password + R"rawliteral(">
-            </div>
-            <div class="form-group">
-                <label for="prefix">Topic Prefix:</label>
-                <input type="text" id="prefix" name="prefix" value=")rawliteral" + mqtt_config.topic_prefix + R"rawliteral(" placeholder="pypowerwall/" required>
-            </div>
-            <button type="submit" class="button">Save Configuration</button>
-        </form>
-        <div class="status" id="status"></div>
-        <div class="info">
-            <strong>Note:</strong> Topic prefix should match your pypowerwall MQTT configuration (default: "pypowerwall/").
-            Device will automatically reconnect to MQTT broker after saving.
-        </div>
-    </div>
-    <script>
-        document.getElementById('mqttForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            
-            const status = document.getElementById('status');
-            
-            try {
-                const response = await fetch('/api/mqtt', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-                
-                if (response.ok) {
-                    status.className = 'status success';
-                    status.textContent = 'Configuration saved successfully! Reconnecting to MQTT...';
-                    status.style.display = 'block';
-                } else {
-                    status.className = 'status error';
-                    status.textContent = 'Failed to save configuration';
-                    status.style.display = 'block';
-                }
-            } catch (error) {
-                status.className = 'status error';
-                status.textContent = 'Error: ' + error.message;
-                status.style.display = 'block';
-            }
-        });
-    </script>
-</body>
-</html>
-)rawliteral";
-        request->send(200, "text/html", html);
-    });
-    
-    // API endpoint to save MQTT configuration
-    web_server.on("/api/mqtt", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
-        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
-            StaticJsonDocument<512> doc;
-            DeserializationError error = deserializeJson(doc, data, len);
-            
-            if (error) {
-                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-                return;
-            }
-            
-            // Update configuration
-            if (doc.containsKey("host")) mqtt_config.host = doc["host"].as<String>();
-            if (doc.containsKey("port")) mqtt_config.port = doc["port"].as<int>();
-            if (doc.containsKey("user")) mqtt_config.user = doc["user"].as<String>();
-            if (doc.containsKey("password")) mqtt_config.password = doc["password"].as<String>();
-            if (doc.containsKey("prefix")) mqtt_config.topic_prefix = doc["prefix"].as<String>();
-            
-            // Save to flash
-            saveMQTTConfig();
-            
-            // Disconnect current MQTT connection to force reconnect
-            if (mqtt_client.connected()) {
-                mqtt_client.disconnect();
-            }
-            
-            request->send(200, "application/json", "{\"status\":\"ok\"}");
-        }
-    );
-    
-    // API endpoint to get current MQTT configuration
-    web_server.on("/api/mqtt", HTTP_GET, [](AsyncWebServerRequest *request) {
-        StaticJsonDocument<512> doc;
-        doc["host"] = mqtt_config.host;
-        doc["port"] = mqtt_config.port;
-        doc["user"] = mqtt_config.user;
-        doc["password"] = mqtt_config.password;
-        doc["prefix"] = mqtt_config.topic_prefix;
-        doc["connected"] = mqtt_client.connected();
-        
-        String response;
-        serializeJson(doc, response);
-        request->send(200, "application/json", response);
-    });
-    
-    web_server.begin();
-    Serial.println("Web server started");
 }
 
 // ============== Power Value Update Functions ==============
