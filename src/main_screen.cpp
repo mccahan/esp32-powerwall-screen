@@ -59,8 +59,6 @@ static lv_obj_t *bar_soc = nullptr;
 static lv_obj_t *img_layout = nullptr;
 static lv_obj_t *img_grid_offline = nullptr;
 
-// Status/WiFi label
-static lv_obj_t *lbl_status = nullptr;
 
 // Data RX indicator dot
 static lv_obj_t *dot_data_rx = nullptr;
@@ -99,9 +97,6 @@ unsigned long last_data_ms = 0;
 static unsigned long last_pulse_ms = 0;
 static unsigned long last_pulse_update_ms = 0;  // Throttle pulse updates
 
-// MQTT status monitoring
-static unsigned long last_mqtt_status_update = 0;
-static bool last_mqtt_status = false;
 
 // Power flow animation state
 static float g_grid_w = 0.0f;
@@ -244,15 +239,6 @@ void createMainDashboard() {
     lv_obj_set_pos(img_grid_offline, GRID_OFFLINE_X, GRID_OFFLINE_Y);
     lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
-    // ========== Status/WiFi Label ==========
-    lbl_status = lv_label_create(main_screen);
-    lv_label_set_text(lbl_status, "");
-    lv_obj_set_style_text_color(lbl_status, lv_color_hex(0x6A6A6A), 0);
-    lv_obj_set_style_text_font(lbl_status, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_align(lbl_status, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_status, TFT_WIDTH);
-    lv_obj_align(lbl_status, LV_ALIGN_BOTTOM_MID, 0, -10);
-
     // ========== Data RX Indicator Dot ==========
     dot_data_rx = lv_obj_create(main_screen);
     lv_obj_set_size(dot_data_rx, 10, 10);
@@ -280,12 +266,6 @@ static void info_btn_event_cb(lv_event_t *e) {
 
 lv_obj_t* getMainScreen() {
     return main_screen;
-}
-
-void updateStatusLabel(const char* status) {
-    if (lbl_status) {
-        lv_label_set_text(lbl_status, status);
-    }
 }
 
 // ============== Data RX Pulse Animation ==============
@@ -328,39 +308,6 @@ void updateDataRxPulse() {
         lv_obj_set_style_bg_opa(dot_data_rx, opacity, 0);
     } else {
         lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
-// ============== MQTT Status Monitoring ==============
-
-void updateMQTTStatus() {
-    // Check MQTT status every 5 seconds and update UI if changed
-    unsigned long now = millis();
-    if (now - last_mqtt_status_update < 5000) {
-        return;
-    }
-    last_mqtt_status_update = now;
-    
-    bool mqtt_connected = mqttClient.isConnected();
-    
-    // Only update if status changed
-    if (mqtt_connected != last_mqtt_status) {
-        last_mqtt_status = mqtt_connected;
-        
-        // Update status label only if WiFi is connected
-        if (WiFi.status() == WL_CONNECTED) {
-            String ip = WiFi.localIP().toString();
-            String status = "WiFi: " + WiFi.SSID() + " | ";
-            
-            if (mqtt_connected) {
-                status += "MQTT: Connected";
-            } else {
-                status += "MQTT: Disconnected";
-            }
-            status += " | Config: http://" + ip;
-            
-            updateStatusLabel(status.c_str());
-        }
     }
 }
 

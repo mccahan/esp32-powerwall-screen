@@ -84,7 +84,6 @@ static void handleImprovCommand(improv::ImprovCommand cmd) {
             improv_state = improv::STATE_PROVISIONING;
             sendImprovState();
 
-            updateStatusLabel("Connecting to WiFi...");
             lv_timer_handler();
 
             wifi_preferences.begin("wifi", false);
@@ -117,7 +116,6 @@ static void handleImprovCommand(improv::ImprovCommand cmd) {
         }
 
         case improv::GET_WIFI_NETWORKS: {
-            updateStatusLabel("Scanning WiFi...");
             lv_timer_handler();
 
             int n = WiFi.scanNetworks();
@@ -137,10 +135,6 @@ static void handleImprovCommand(improv::ImprovCommand cmd) {
             sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, empty);
 
             WiFi.scanDelete();
-
-            if (improv_state != improv::STATE_PROVISIONED) {
-                updateStatusLabel("Configure WiFi via\nESP Web Tools");
-            }
             break;
         }
 
@@ -242,18 +236,6 @@ void checkWiFiConnection() {
         // Hide boot screen and show dashboard
         hideBootScreen();
 
-        String status = "WiFi: " + WiFi.SSID();
-        
-        // Check if MQTT is configured before showing status
-        MQTTConfig& mqtt_config = mqttClient.getConfig();
-        if (mqtt_config.host.length() > 0) {
-            status += " | MQTT: Connecting...";
-        } else {
-            status += " | MQTT: Not configured";
-        }
-        status += " | Config: http://" + ip;
-        updateStatusLabel(status.c_str());
-
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
         
         // Now that WiFi is connected, connect to MQTT broker
@@ -265,7 +247,6 @@ void checkWiFiConnection() {
         sendImprovState();
         sendImprovError(improv::ERROR_UNABLE_TO_CONNECT);
 
-        updateStatusLabel("WiFi failed - Configure via ESP Web Tools");
         Serial.println("WiFi connection timeout");
     }
 }
