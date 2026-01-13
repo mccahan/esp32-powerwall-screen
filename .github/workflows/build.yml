@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ main, copilot/create-powerwall-status-display ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -59,14 +59,14 @@ jobs:
         retention-days: 30
     
     - name: Prepare GitHub Pages
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/copilot/create-powerwall-status-display'
+      if: github.ref == 'refs/heads/main'
       run: |
         mkdir -p public
         cp dist/*.bin public/
         cp index.html public/ || echo "index.html will be created"
     
     - name: Create ESP Web Tools page
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/copilot/create-powerwall-status-display'
+      if: github.ref == 'refs/heads/main'
       run: |
         cat > public/index.html << 'EOF'
         <!DOCTYPE html>
@@ -173,7 +173,7 @@ jobs:
         EOF
     
     - name: Create manifest.json
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/copilot/create-powerwall-status-display'
+      if: github.ref == 'refs/heads/main'
       run: |
         cat > public/manifest.json << 'EOF'
         {
@@ -196,7 +196,7 @@ jobs:
         EOF
     
     - name: Deploy to GitHub Pages
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/copilot/create-powerwall-status-display'
+      if: github.ref == 'refs/heads/main'
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
