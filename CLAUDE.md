@@ -4,6 +4,8 @@ This ESP32 code powers small displays like the Guition ESP32-S3-4848S040 to show
 
 ## Build Commands
 
+When flashing, ignore the response contents unless the process exits status 1 to save context.
+
 ```bash
 # Build firmware
 pio run

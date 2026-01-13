@@ -46,9 +46,10 @@ Arduino_ST7701_RGBPanel *gfx = new Arduino_ST7701_RGBPanel(
 #define COLOR_BAR_BG    0x16181C
 #define COLOR_BAR_FILL  0x22C55E
 
-// LVGL display buffer
+// LVGL display buffers (double buffered)
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t *disp_draw_buf;
+static lv_color_t *disp_draw_buf1;
+static lv_color_t *disp_draw_buf2;
 static lv_disp_drv_t disp_drv;
 
 // UI elements - Main dashboard
@@ -196,7 +197,8 @@ void loop() {
 }
 
 void setupDisplay() {
-    gfx->begin(16000000);
+    // Lower pixel clock (8MHz) reduces tearing by giving more time between refreshes
+    gfx->begin(8000000);
     gfx->fillScreen(BLACK);
     pinMode(GFX_BL, OUTPUT);
     digitalWrite(GFX_BL, HIGH);
@@ -205,24 +207,26 @@ void setupDisplay() {
 void setupLVGL() {
     lv_init();
 
-    size_t buf_size = TFT_WIDTH * 200;
-    disp_draw_buf = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * buf_size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    // Full frame double buffers in PSRAM for smooth updates
+    size_t buf_size = TFT_WIDTH * TFT_HEIGHT;
 
-    if (!disp_draw_buf) {
-        disp_draw_buf = (lv_color_t *)ps_malloc(sizeof(lv_color_t) * buf_size);
-    }
+    disp_draw_buf1 = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    disp_draw_buf2 = (lv_color_t *)heap_caps_malloc(sizeof(lv_color_t) * buf_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
 
-    if (!disp_draw_buf) {
+    if (!disp_draw_buf1 || !disp_draw_buf2) {
+        Serial.println("Failed to allocate display buffers!");
         while (1) { delay(1000); }
     }
 
-    lv_disp_draw_buf_init(&draw_buf, disp_draw_buf, NULL, buf_size);
+    // Double buffering: LVGL draws to one buffer while we copy the other to display
+    lv_disp_draw_buf_init(&draw_buf, disp_draw_buf1, disp_draw_buf2, buf_size);
 
     lv_disp_drv_init(&disp_drv);
     disp_drv.hor_res = TFT_WIDTH;
     disp_drv.ver_res = TFT_HEIGHT;
     disp_drv.flush_cb = my_disp_flush;
     disp_drv.draw_buf = &draw_buf;
+    disp_drv.full_refresh = 1;  // Always send full frame to reduce partial update tearing
     lv_disp_drv_register(&disp_drv);
 }
 
