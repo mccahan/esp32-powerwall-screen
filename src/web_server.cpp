@@ -55,11 +55,8 @@ void PowerwallWebServer::setupRoutes() {
             }
             if (doc.containsKey("prefix")) config.topic_prefix = doc["prefix"].as<String>();
             
-            // Save to flash
+            // Save to flash and reconnect with new settings
             mqttClient.saveConfig();
-            
-            // Disconnect current MQTT connection to force reconnect with new settings
-            mqttClient.disconnect();
             
             request->send(200, "application/json", "{\"status\":\"ok\"}");
         }
