@@ -88,17 +88,18 @@ def convert_svg_to_lvgl_c(svg_file, output_file, var_name, width=None, height=No
                 f.write(f'const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST uint8_t {var_name}_map[] = {{\n')
                 
                 # Interleave RGB565 color data with alpha data
-                byte_count = 0
+                # Format: 5 pixels per line (5 * 3 = 15 bytes per line)
+                pixel_count = 0
                 for i, pixel in enumerate(pixels):
-                    if byte_count % 16 == 0:
+                    if pixel_count % 5 == 0:
                         f.write('    ')
                     # Write RGB565 as two bytes (little-endian) followed by alpha
                     f.write(f'0x{pixel & 0xFF:02x}, 0x{(pixel >> 8) & 0xFF:02x}, 0x{alphas[i]:02x}, ')
-                    byte_count += 3
-                    if byte_count % 15 == 0:  # 5 pixels per line (5 * 3 = 15 bytes)
+                    pixel_count += 1
+                    if pixel_count % 5 == 0:
                         f.write('\n')
                 
-                if byte_count % 15 != 0:
+                if pixel_count % 5 != 0:
                     f.write('\n')
                 f.write('};\n\n')
             else:
