@@ -161,6 +161,7 @@ void createMainDashboard() {
     lv_obj_set_pos(img_layout, 0, 0);
     lv_obj_set_size(img_layout, TFT_WIDTH, TFT_HEIGHT);
     lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(img_layout, LV_OBJ_FLAG_HIDDEN);
 
     // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
     // Battery value - centered at bottom
