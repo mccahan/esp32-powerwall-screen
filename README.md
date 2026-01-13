@@ -61,13 +61,47 @@ After flashing the firmware, configure WiFi using Improv:
 ```
 esp32-powerwall-screen/
 ├── src/
-│   └── main.cpp          # Main application code
+│   ├── main.cpp           # Main application code
+│   └── ui_assets/         # Generated UI assets (fonts & images)
+│       ├── space_bold_21.c      # SpaceGrotesk font (21px)
+│       ├── space_bold_30.c      # SpaceGrotesk font (30px)
+│       ├── layout_img.c         # Background layout with icons
+│       ├── grid_offline_img.c   # Grid offline overlay
+│       └── ui_assets.h          # Asset declarations
+├── assets/                # Source assets (fonts & icons)
+│   ├── SpaceGrotesk-*.ttf       # SpaceGrotesk font family
+│   ├── layout.svg               # UI layout with power icons
+│   └── grid_offline.svg         # Grid offline indicator
 ├── include/
-│   └── lv_conf.h         # LVGL configuration
-├── platformio.ini        # PlatformIO configuration
+│   └── lv_conf.h          # LVGL configuration
+├── platformio.ini         # PlatformIO configuration
 └── .github/
     └── workflows/
-        └── build.yml     # CI/CD pipeline
+        └── build.yml      # CI/CD pipeline
+```
+
+### Regenerating UI Assets
+
+If you modify fonts or icons in the `assets/` directory, regenerate the LVGL assets:
+
+```bash
+# Install Node.js conversion tools
+npm install -g lv_font_conv
+
+# Install Python dependencies for image conversion
+pip3 install cairosvg pillow
+
+# Convert fonts (already done, included in src/ui_assets/)
+lv_font_conv --no-compress --no-prefilter --bpp 4 --size 21 \
+  --font assets/SpaceGrotesk-Bold.ttf --range 0x20-0x7F \
+  --format lvgl -o src/ui_assets/space_bold_21.c
+
+lv_font_conv --no-compress --no-prefilter --bpp 4 --size 30 \
+  --font assets/SpaceGrotesk-Bold.ttf --range 0x20-0x7F \
+  --format lvgl -o src/ui_assets/space_bold_30.c
+
+# Convert SVG icons to C arrays (requires custom script)
+# See conversion script in project history for details
 ```
 
 ### Building
