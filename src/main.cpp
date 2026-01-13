@@ -382,29 +382,43 @@ void updateStatusLabel(const char* status) {
 
 void loopImprov() {
     while (Serial.available()) {
-        uint8_t byte = Serial.read();
+        uint8_t b = Serial.read();
 
-        bool result = improv::parse_improv_serial_byte(
-            improv_buffer_pos,
-            byte,
+        // Add byte to buffer first
+        if (improv_buffer_pos < sizeof(improv_buffer)) {
+            improv_buffer[improv_buffer_pos++] = b;
+        } else {
+            // Buffer overflow, reset
+            improv_buffer_pos = 0;
+            continue;
+        }
+
+        // Try to parse the buffer
+        improv::ImprovCommand cmd = {improv::UNKNOWN, "", ""};
+        improv::Error err = improv::ERROR_NONE;
+
+        bool valid = improv::parse_improv_serial_byte(
+            improv_buffer_pos - 1,
+            b,
             improv_buffer,
-            [](improv::ImprovCommand cmd) -> bool {
-                handleImprovCommand(cmd);
+            [&cmd](improv::ImprovCommand parsed_cmd) -> bool {
+                cmd = parsed_cmd;
                 return true;
             },
-            [](improv::Error error) {
-                sendImprovError(error);
+            [&err](improv::Error error) {
+                err = error;
             }
         );
 
-        if (result) {
-            improv_buffer[improv_buffer_pos++] = byte;
-            if (improv_buffer_pos >= sizeof(improv_buffer)) {
-                improv_buffer_pos = 0;
-            }
-        } else {
+        if (!valid) {
+            // Invalid sequence, reset buffer
+            improv_buffer_pos = 0;
+        } else if (cmd.command != improv::UNKNOWN) {
+            // Complete command received
+            handleImprovCommand(cmd);
             improv_buffer_pos = 0;
         }
+        // else: valid but incomplete, keep accumulating
     }
 }
 
@@ -451,19 +465,22 @@ void handleImprovCommand(improv::ImprovCommand cmd) {
             lv_timer_handler();
 
             int n = WiFi.scanNetworks();
-            std::vector<String> networks;
 
+            // Send each network as a separate RPC response
             for (int i = 0; i < n && i < 10; i++) {
-                String network = WiFi.SSID(i);
-                network += ",";
-                network += String(WiFi.RSSI(i));
-                network += ",";
-                network += (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "NO" : "YES";
-                networks.push_back(network);
+                String ssid = WiFi.SSID(i);
+                String rssi = String(WiFi.RSSI(i));
+                String auth = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "NO" : "YES";
+
+                std::vector<String> network = {ssid, rssi, auth};
+                sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, network);
             }
 
+            // Send empty response to signal end of list
+            std::vector<String> empty;
+            sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, empty);
+
             WiFi.scanDelete();
-            sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, networks);
 
             if (improv_state != improv::STATE_PROVISIONED) {
                 updateStatusLabel("Configure WiFi via\nESP Web Tools");
