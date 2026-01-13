@@ -215,7 +215,14 @@ void PowerwallMQTTClient::onMqttMessage(char* topic, char* payload, AsyncMqttCli
         Serial.printf("SOC: %.1f %%\n", value);
     }
     else if (topicStr == prefix + "site/offgrid") {
-        int offgrid = atoi(message);
+        // Parse integer value with error checking
+        char* endptr_int;
+        long offgrid_long = strtol(message, &endptr_int, 10);
+        if (endptr_int == message || *endptr_int != '\0' || offgrid_long < 0 || offgrid_long > 1) {
+            Serial.printf("Failed to parse off-grid value: %s\n", message);
+            return;
+        }
+        int offgrid = (int)offgrid_long;
         if (offGridCallback) {
             offGridCallback(offgrid);
         }

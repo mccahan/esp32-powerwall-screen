@@ -46,7 +46,13 @@ void PowerwallWebServer::setupRoutes() {
             if (doc.containsKey("host")) config.host = doc["host"].as<String>();
             if (doc.containsKey("port")) config.port = doc["port"].as<int>();
             if (doc.containsKey("user")) config.user = doc["user"].as<String>();
-            if (doc.containsKey("password")) config.password = doc["password"].as<String>();
+            // Only update password if a non-empty value is provided
+            if (doc.containsKey("password")) {
+                String newPassword = doc["password"].as<String>();
+                if (newPassword.length() > 0) {
+                    config.password = newPassword;
+                }
+            }
             if (doc.containsKey("prefix")) config.topic_prefix = doc["prefix"].as<String>();
             
             // Save to flash
@@ -193,7 +199,7 @@ String PowerwallWebServer::getConfigPage() {
             </div>
             <div class="form-group">
                 <label for="password">MQTT Password:</label>
-                <input type="password" id="password" name="password" value=")rawliteral" + config.password + R"rawliteral(" placeholder="Leave blank to keep current">
+                <input type="password" id="password" name="password" placeholder="Enter new password or leave blank">
             </div>
             <div class="form-group">
                 <label for="prefix">Topic Prefix:</label>
