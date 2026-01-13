@@ -73,7 +73,7 @@ jobs:
     - name: Create manifest.json with versioning
       if: github.ref == 'refs/heads/main'
       run: |
-        # Create versioned manifest
+        # Create versioned manifest (using unquoted EOF to allow variable expansion)
         cat > public/manifest-${MANIFEST_VERSION}.json << EOF
         {
           "name": "ESP32 Powerwall Display",
@@ -109,6 +109,7 @@ jobs:
     - name: Create ESP Web Tools page
       if: github.ref == 'refs/heads/main'
       run: |
+        # Create index.html (using unquoted EOF to allow variable expansion)
         cat > public/index.html << EOF
         <!DOCTYPE html>
         <html lang="en">
