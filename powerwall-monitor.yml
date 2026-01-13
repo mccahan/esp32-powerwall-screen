@@ -1,0 +1,1051 @@
+esphome:
+  name: powerwall-monitor
+  friendly_name: Powerwall Monitor
+  min_version: 2025.11.0
+
+# -------------------------------------------------------------------
+# Substitutions / Theme
+# -------------------------------------------------------------------
+substitutions:
+  # MQTT topic root for your pypowerwall2mqtt bridge (or your own topic scheme)
+  pypowerwall_prefix: "pypowerwall"
+
+  timezone: "America/Denver"
+
+  # Colors
+  c_bg: "0x0A0C10"
+  c_white: "white"
+  c_grid: "0x8A8A8A"
+  c_solar: "0xFFD54A"
+  c_home: "0x4FC3F7"
+  c_batt: "0x64DD17"
+
+  c_line_neutral: "0x8A8A8A"
+  c_line_yellow: "0xFFD54A"
+  c_line_blue: "0x4FC3F7"
+  c_line_green: "0x64DD17"
+
+  c_batt_bar_bg: "0x1A1A1A"
+  c_batt_bar_fill: "0x64DD17"
+
+  screen_height: "480"
+  screen_width: "480"
+  screen_rotation: 270
+
+  touchscreen_idle_timeout: "30s"
+  touchscreen_daytime_brightness: "80%"
+  touchscreen_nighttime_brightness: "50%"
+
+  # LCD backlight modes - Code in backlight.yaml
+  # Day mode is set to Sunrise
+  # Evening mode is set to sunset
+  # Set Night mode  at Mightnight here
+  screen_night_hour: '22'
+  screen_night_minute: '0'
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    advanced:
+      execute_from_psram: true
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+preferences:
+  flash_write_interval: 5min
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Powerwall-Display"
+    password: "5OsITduhg5ns"
+
+captive_portal:
+
+packages:
+  hardware: !include hardware/guition-esp32-s3-4848s040.yaml
+  ota: !include pypowerwall/ota.yaml
+  brightness_time: !include pypowerwall/brightness-time.yml
+
+# -------------------------------------------------------------------
+# Fonts
+# -------------------------------------------------------------------
+font:
+  - file: "assets/SpaceGrotesk-Bold.ttf"
+    id: space_bold
+    bpp: 4
+    size: 21
+  - file: "assets/SpaceGrotesk-Bold.ttf"
+    id: space_bold_large
+    bpp: 4
+    size: 30
+
+image:
+  - file: "assets/layout.svg"
+    type: RGB565
+    id: layout
+    transparency: alpha_channel
+  - file: "assets/grid_offline.svg"
+    type: RGB565
+    id: grid_offline
+    transparency: alpha_channel
+
+# -------------------------------------------------------------------
+# Globals (values + animation phases)
+# -------------------------------------------------------------------
+globals:
+  - id: g_grid_w
+    type: float
+    initial_value: "0"
+  - id: g_home_w
+    type: float
+    initial_value: "0"
+  - id: g_solar_w
+    type: float
+    initial_value: "0"
+  - id: g_batt_w
+    type: float
+    initial_value: "0"
+  - id: g_soc
+    type: float
+    initial_value: "0"
+  - id: offgrid
+    type: bool
+    initial_value: "false"
+
+  # animation phases (0..1)
+  - id: ph_master
+    type: float
+    initial_value: "0"
+
+  # last activity for indicator
+  - id: g_last_data_ms
+    type: uint32_t
+    initial_value: "0"
+  - id: g_last_pulse_ms
+    type: uint32_t
+    initial_value: "0"
+  - id: g_last_anim_ms
+    type: uint32_t
+    initial_value: "0"
+
+# -------------------------------------------------------------------
+# MQTT (subscribe to pypowerwall topics)
+# -------------------------------------------------------------------
+mqtt:
+  broker: !secret mqtt_broker
+  port: !secret mqtt_port
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  discovery: true
+
+  log_topic:
+    topic: bedside-display/log
+    level: INFO
+
+  on_message:
+    # Grid (watts) - negative means exporting
+    - topic: ${pypowerwall_prefix}/site/instant_power
+      then:
+        - lambda: |-
+            float w = atof(x.c_str());
+            id(g_grid_w) = w;
+
+            // format signed kW with 1 decimal (no %f)
+            int kw10 = (int) lroundf(w / 100.0f);
+            int whole = kw10 / 10;
+            int frac  = abs(kw10 % 10);
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%d.%d kW", whole, frac);
+            lv_label_set_text(id(lbl_grid_val), buf);
+            id(g_last_data_ms) = millis();
+
+            lv_obj_add_flag(boot_screen, LV_OBJ_FLAG_HIDDEN); // hide boot screen on first data
+
+    # Home (watts) - always positive load
+    - topic: ${pypowerwall_prefix}/load/instant_power
+      then:
+        - lambda: |-
+            float w = atof(x.c_str());
+            id(g_home_w) = w;
+
+            int kw10 = (int) lroundf(w / 100.0f);
+            int whole = kw10 / 10;
+            int frac  = abs(kw10 % 10);
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%d.%d kW", whole, frac);
+            lv_label_set_text(id(lbl_home_val), buf);
+            id(g_last_data_ms) = millis();
+
+            lv_obj_add_flag(boot_screen, LV_OBJ_FLAG_HIDDEN); // hide boot screen on first data
+
+    # Solar (watts)
+    - topic: ${pypowerwall_prefix}/solar/instant_power
+      then:
+        - lambda: |-
+            float w = atof(x.c_str());
+            id(g_solar_w) = w;
+
+            int kw10 = (int) lroundf(w / 100.0f);
+            int whole = kw10 / 10;
+            int frac  = abs(kw10 % 10);
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%d.%d kW", whole, frac);
+            lv_label_set_text(id(lbl_solar_val), buf);
+            id(g_last_data_ms) = millis();
+
+            lv_obj_add_flag(boot_screen, LV_OBJ_FLAG_HIDDEN); // hide boot screen on first data
+
+    # Battery (watts) - negative = charging
+    - topic: ${pypowerwall_prefix}/battery/instant_power
+      then:
+        - lambda: |-
+            float w = atof(x.c_str());
+            id(g_batt_w) = w;
+
+            int kw10 = (int) lroundf(w / 100.0f);
+            int whole = kw10 / 10;
+            int frac  = abs(kw10 % 10);
+            char buf[24];
+            snprintf(buf, sizeof(buf), "%d.%d kW", whole, frac);
+            lv_label_set_text(id(lbl_batt_val), buf);
+            id(g_last_data_ms) = millis();
+
+            lv_obj_add_flag(boot_screen, LV_OBJ_FLAG_HIDDEN); // hide boot screen on first data
+
+    # Battery state of charge (%)
+    - topic: ${pypowerwall_prefix}/battery/level
+      then:
+        - lambda: |-
+            float soc = atof(x.c_str());
+            id(g_soc) = soc;
+
+            // Adjustment for 5% reserve
+            soc = (soc / 0.95) - (5 / 0.95);
+
+            if (soc < 0) soc = 0;
+            if (soc > 100) soc = 100;
+
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d#6A6A6A %%#", (int) lroundf(soc));
+            lv_label_set_text(id(lbl_soc), buf);
+            lv_label_set_text(id(lbl_soc_offgrid), buf);
+
+            // progress bar
+            lv_bar_set_value(id(bar_soc), (int) lroundf(soc), LV_ANIM_OFF);
+            id(g_last_data_ms) = millis();
+    
+    # Off-grid
+    - topic: ${pypowerwall_prefix}/site/offgrid
+      then:
+        - lambda: |-
+            if (x == "1") {
+              id(offgrid) = true;
+              lv_obj_clear_flag(grid_disable_overlay, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_clear_flag(lbl_soc_offgrid, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_clear_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(lbl_soc, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(lbl_grid_val, LV_OBJ_FLAG_HIDDEN);
+            } else {
+              id(offgrid) = false;
+              lv_obj_add_flag(grid_disable_overlay, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(lbl_soc_offgrid, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_add_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_clear_flag(lbl_soc, LV_OBJ_FLAG_HIDDEN);
+              lv_obj_clear_flag(lbl_grid_val, LV_OBJ_FLAG_HIDDEN);
+            }
+
+    # Battery time remaining
+    - topic: ${pypowerwall_prefix}/battery/time_remaining
+      then:
+        - lambda: |-
+            if (x.length() > 0) {
+              lv_label_set_text(id(lbl_time_remaining), (x + " #6A6A6A hours#").c_str());
+              if (id(offgrid)) {
+                lv_obj_clear_flag(id(lbl_time_remaining), LV_OBJ_FLAG_HIDDEN);
+              }
+            } else {
+              lv_obj_add_flag(id(lbl_time_remaining), LV_OBJ_FLAG_HIDDEN);
+            }
+        
+          
+
+# -------------------------------------------------------------------
+# Dot animation (FULL source -> sink paths)
+# -------------------------------------------------------------------
+interval:
+  - interval: 33ms
+    then:
+      - lambda: |-
+          // ------------------------------------------------------------
+          // Geometry
+          // ------------------------------------------------------------
+          const int SX = 240, SY = 80;  // Solar
+          const int HX = 360, HY = 194;  // Home
+          const int BX = 240, BY = 280;  // Battery
+          const int GX = 120, GY = 194;  // Grid
+          const int CX = 240, CY = 194;  // Center
+
+          const float THRESH_W = 50.0f;
+          const float FADE = 0.12f;
+          const int DOT_R = 6;
+          const uint32_t DEFAULT_FRAME_MS = 1000 / 30;  // ~30 FPS initial assumption
+
+          // ------------------------------------------------------------
+          // Helpers
+          // ------------------------------------------------------------
+          auto clampf = [](float v, float a, float b) -> float {
+            if (v < a) return a;
+            if (v > b) return b;
+            return v;
+          };
+
+          auto lerp_i = [](int a, int b, float t) -> int {
+            return (int) lroundf((float)a + ((float)b - (float)a) * t);
+          };
+
+          auto set_dot_centered = [&](lv_obj_t* dot, int x, int y) {
+            lv_obj_set_pos(dot, x - DOT_R, y - DOT_R);
+          };
+
+          auto set_dot_alpha = [&](lv_obj_t* dot, float a01) {
+            a01 = clampf(a01, 0.0f, 1.0f);
+            lv_obj_set_style_bg_opa(dot, (lv_opa_t) lroundf(a01 * 200.0f) + 10.0f, 0);
+          };
+
+          auto show_dot = [&](lv_obj_t* dot) {
+            lv_obj_clear_flag(dot, LV_OBJ_FLAG_HIDDEN);
+          };
+
+          auto hide_dot = [&](lv_obj_t* dot) {
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+          };
+
+
+          // Linear easing (no easing, just returns t)
+          auto ease_linear = [&](float t) -> float {
+            return clampf(t, 0.0f, 1.0f);
+          };
+
+
+          // ------------------------------------------------------------
+          // Master phase (shared by all dots)
+          // ------------------------------------------------------------
+          auto advance_master_phase = [&](float ph, float max_watts_active, float dt_seconds) -> float {
+            float speed = clampf(max_watts_active / 2500.0f, 0.18f, 0.25f);
+            ph += speed * dt_seconds;
+            if (ph >= 1.0f) ph -= floorf(ph);
+            return ph;
+          };
+
+          // ------------------------------------------------------------
+          // Place dot on a two-segment path: source → center → sink
+          // Phase 0.0-0.5: source → center
+          // Phase 0.5-1.0: center → sink
+          // ------------------------------------------------------------
+          auto place_on_two_segment_path = [&](lv_obj_t* dot, float t,
+                                                int x_src, int y_src,
+                                                int x_sink, int y_sink) {
+            t = clampf(t, 0.0f, 1.0f);
+
+            const float MIDPOINT = 0.5f;       // Split point between segments
+            const float SEGMENT_SCALE = 2.0f;  // Scale factor to map 0.5 range to 1.0
+            
+            int x, y;
+            float segment_t;
+            
+            if (t < MIDPOINT) {
+              // First segment: source → center
+              segment_t = t * SEGMENT_SCALE;  // Map 0.0-0.5 to 0.0-1.0
+              x = lerp_i(x_src, CX, segment_t);
+              y = lerp_i(y_src, CY, segment_t);
+            } else {
+              // Second segment: center → sink
+              segment_t = (t - MIDPOINT) * SEGMENT_SCALE;  // Map 0.5-1.0 to 0.0-1.0
+              x = lerp_i(CX, x_sink, segment_t);
+              y = lerp_i(CY, y_sink, segment_t);
+            }
+
+            set_dot_centered(dot, x, y);
+
+            // Fade at the very start and very end of full journey
+            float a = 1.0f;
+            if (t < FADE) a = t / FADE;
+            else if (t > (1.0f - FADE)) a = (1.0f - t) / FADE;
+            set_dot_alpha(dot, a);
+          };
+
+          auto animate = [&](lv_obj_t* dot, float eased_t, float watts,
+                   int x_src, int y_src, int x_sink, int y_sink) {
+            if (watts < THRESH_W) {
+              hide_dot(dot);          // fully hidden when inactive
+              return;
+            }
+
+            show_dot(dot);            // visible only when active
+            place_on_two_segment_path(dot, eased_t, x_src, y_src, x_sink, y_sink);
+          };
+
+
+          // ------------------------------------------------------------
+          // Read instantaneous powers
+          // ------------------------------------------------------------
+          const float grid_w  = id(g_grid_w);
+          const float home_w  = id(g_home_w);
+          const float solar_w = id(g_solar_w);
+          const float batt_w  = id(g_batt_w);
+          const float soc     = id(g_soc);
+
+          float solar_src = solar_w > 0 ? solar_w : 0;
+          float grid_src  = grid_w  > 0 ? grid_w  : 0;
+          float batt_src  = batt_w  > 0 ? batt_w  : 0;
+
+          float home_sink = home_w > 0 ? home_w : 0;
+          float batt_sink = batt_w < 0 ? -batt_w : 0;
+          float grid_sink = grid_w < 0 ? -grid_w : 0;
+
+          // ------------------------------------------------------------
+          // Flow allocation (visual only)
+          // ------------------------------------------------------------
+          float f_s2h = 0, f_s2b = 0, f_s2g = 0;
+          float f_g2h = 0, f_g2b = 0;
+          float f_b2h = 0, f_b2g = 0;
+
+          float rem_solar = solar_src;
+          float rem_home  = home_sink;
+          float rem_batt  = batt_sink;
+          float rem_grid  = grid_sink;
+
+          // Mark solar as disabled with overlay when inactive
+          if (rem_solar < 100) {
+            lv_obj_clear_flag(solar_disable_overlay, LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(solar_disable_overlay, LV_OBJ_FLAG_HIDDEN);
+          }
+
+          // Mark battery as disabled with overlay when inactive
+          if (batt_w > -100 && batt_w < 100) {
+            lv_obj_clear_flag(battery_disable_overlay, LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(battery_disable_overlay, LV_OBJ_FLAG_HIDDEN);
+          }
+
+          if (rem_solar > 0 && rem_batt > 0 && soc < 99.5f) {
+            f_s2b = fminf(rem_solar, rem_batt);
+            rem_solar -= f_s2b;
+            rem_batt  -= f_s2b;
+          }
+
+          if (rem_solar > 0 && rem_home > 0) {
+            f_s2h = fminf(rem_solar, rem_home);
+            rem_solar -= f_s2h;
+            rem_home  -= f_s2h;
+          }
+
+          if (rem_solar > 0 && rem_grid > 0) {
+            f_s2g = fminf(rem_solar, rem_grid);
+            rem_solar -= f_s2g;
+            rem_grid  -= f_s2g;
+          }
+
+          float rem_grid_src = grid_src;
+          if (rem_grid_src > 0 && rem_batt > 0) {
+            f_g2b = fminf(rem_grid_src, rem_batt);
+            rem_grid_src -= f_g2b;
+            rem_batt     -= f_g2b;
+          }
+
+          if (rem_grid_src > 0 && rem_home > 0) {
+            f_g2h = fminf(rem_grid_src, rem_home);
+            rem_grid_src -= f_g2h;
+            rem_home     -= f_g2h;
+          }
+
+          float rem_batt_src = batt_src;
+          if (rem_batt_src > 0 && rem_home > 0) {
+            f_b2h = fminf(rem_batt_src, rem_home);
+            rem_batt_src -= f_b2h;
+            rem_home     -= f_b2h;
+          }
+
+          if (rem_batt_src > 0 && rem_grid > 0) {
+            f_b2g = fminf(rem_batt_src, rem_grid);
+            rem_batt_src -= f_b2g;
+            rem_grid     -= f_b2g;
+          }
+
+          // ------------------------------------------------------------
+          // Shared synchronized phase
+          // ------------------------------------------------------------
+          float max_active = 0.0f;
+          auto consider = [&](float w) {
+            if (w >= THRESH_W && w > max_active) max_active = w;
+          };
+
+          consider(f_s2h); consider(f_s2b); consider(f_s2g);
+          consider(f_g2h); consider(f_g2b);
+          consider(f_b2h); consider(f_b2g);
+
+          if (max_active < THRESH_W) {
+            hide_dot(id(dot_solar_home));
+            hide_dot(id(dot_solar_home_2));
+            hide_dot(id(dot_solar_home_3));
+            hide_dot(id(dot_solar_batt));
+            hide_dot(id(dot_solar_batt_2));
+            hide_dot(id(dot_solar_batt_3));
+            hide_dot(id(dot_solar_grid));
+            hide_dot(id(dot_solar_grid_2));
+            hide_dot(id(dot_solar_grid_3));
+            hide_dot(id(dot_grid_home));
+            hide_dot(id(dot_grid_home_2));
+            hide_dot(id(dot_grid_home_3));
+            hide_dot(id(dot_grid_batt));
+            hide_dot(id(dot_grid_batt_2));
+            hide_dot(id(dot_grid_batt_3));
+            hide_dot(id(dot_batt_home));
+            hide_dot(id(dot_batt_home_2));
+            hide_dot(id(dot_batt_home_3));
+            hide_dot(id(dot_batt_grid));
+            hide_dot(id(dot_batt_grid_2));
+            hide_dot(id(dot_batt_grid_3));
+            return;
+          }
+
+          // Calculate elapsed time since last update
+          const uint32_t now = millis();
+          const uint32_t last_anim = id(g_last_anim_ms);
+          uint32_t elapsed_ms;
+          
+          // Handle first run and uint32_t overflow (millis() rolls over every ~49.7 days)
+          if (last_anim == 0 || now < last_anim) {
+            elapsed_ms = DEFAULT_FRAME_MS;
+          } else {
+            elapsed_ms = now - last_anim;
+          }
+          
+          const float dt_seconds = (float)elapsed_ms / 1000.0f;
+          id(g_last_anim_ms) = now;
+
+          id(ph_master) = advance_master_phase(id(ph_master), max_active, dt_seconds);
+
+          // Calculate phases for 3 dots evenly spaced (120° apart)
+          const float phase_offset_1 = 1.0f / 3.0f;
+          const float phase_offset_2 = 2.0f / 3.0f;
+          
+          const float phase_1 = id(ph_master);
+          const float phase_2 = fmodf(id(ph_master) + phase_offset_1, 1.0f);
+          const float phase_3 = fmodf(id(ph_master) + phase_offset_2, 1.0f);
+
+          // Apply easing to each phase
+          const float eased_t1 = ease_linear(phase_1);
+          const float eased_t2 = ease_linear(phase_2);
+          const float eased_t3 = ease_linear(phase_3);
+
+          // ------------------------------------------------------------
+          // Animate all flows (inactive ones hidden automatically)
+          // Dots move source → center → sink in two segments
+          // ------------------------------------------------------------
+          
+          // Solar flows (yellow dots)
+          animate(id(dot_solar_home),   eased_t1, f_s2h, SX, SY, HX, HY);
+          animate(id(dot_solar_home_2), eased_t2, f_s2h, SX, SY, HX, HY);
+          animate(id(dot_solar_home_3), eased_t3, f_s2h, SX, SY, HX, HY);
+          
+          animate(id(dot_solar_batt),   eased_t1, f_s2b, SX, SY, BX, BY);
+          animate(id(dot_solar_batt_2), eased_t2, f_s2b, SX, SY, BX, BY);
+          animate(id(dot_solar_batt_3), eased_t3, f_s2b, SX, SY, BX, BY);
+          
+          animate(id(dot_solar_grid),   eased_t1, f_s2g, SX, SY, GX, GY);
+          animate(id(dot_solar_grid_2), eased_t2, f_s2g, SX, SY, GX, GY);
+          animate(id(dot_solar_grid_3), eased_t3, f_s2g, SX, SY, GX, GY);
+
+          // Grid flows (gray dots)
+          animate(id(dot_grid_home),    eased_t1, f_g2h, GX, GY, HX, HY);
+          animate(id(dot_grid_home_2),  eased_t2, f_g2h, GX, GY, HX, HY);
+          animate(id(dot_grid_home_3),  eased_t3, f_g2h, GX, GY, HX, HY);
+          
+          animate(id(dot_grid_batt),    eased_t1, f_g2b, GX, GY, BX, BY);
+          animate(id(dot_grid_batt_2),  eased_t2, f_g2b, GX, GY, BX, BY);
+          animate(id(dot_grid_batt_3),  eased_t3, f_g2b, GX, GY, BX, BY);
+
+          // Battery flows (green dots)
+          animate(id(dot_batt_home),    eased_t1, f_b2h, BX, BY, HX, HY);
+          animate(id(dot_batt_home_2),  eased_t2, f_b2h, BX, BY, HX, HY);
+          animate(id(dot_batt_home_3),  eased_t3, f_b2h, BX, BY, HX, HY);
+          
+          animate(id(dot_batt_grid),    eased_t1, f_b2g, BX, BY, GX, GY);
+          animate(id(dot_batt_grid_2),  eased_t2, f_b2g, BX, BY, GX, GY);
+          animate(id(dot_batt_grid_3),  eased_t3, f_b2g, BX, BY, GX, GY);
+
+          // ---- RX pulse dot (rate-limited to 1 Hz) ----
+          {
+            const uint32_t now = millis();
+            const uint32_t since_data  = now - id(g_last_data_ms);
+            const uint32_t since_pulse = now - id(g_last_pulse_ms);
+
+            // Start a new pulse only if:
+            //  - data arrived recently
+            //  - AND at least 1s since the last pulse started
+            if (since_data <= 200 && since_pulse >= 1000) {
+              id(g_last_pulse_ms) = now;
+              lv_obj_clear_flag(id(dot_data_rx), LV_OBJ_FLAG_HIDDEN);
+            }
+
+            const uint32_t age = now - id(g_last_pulse_ms);
+
+            // Pulse lasts 900ms
+            if (age <= 900) {
+              lv_obj_clear_flag(id(dot_data_rx), LV_OBJ_FLAG_HIDDEN);
+
+              float t = (float)age / 900.0f;   // 0..1
+              float s = sinf(3.1415926f * t);
+              float a = s * s;                 // smooth single pulse
+
+              // optional visibility floor
+              a = 0.15f + 0.85f * a;
+
+              lv_obj_set_style_bg_opa(
+                id(dot_data_rx),
+                (lv_opa_t)lroundf(a * 100.0f),
+                0
+              );
+            } else {
+              lv_obj_add_flag(id(dot_data_rx), LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+          // ---- If we haven't seen data in a while, show the boot screen ----
+          {
+            const uint32_t now = millis();
+            const uint32_t since_data  = now - id(g_last_data_ms);
+
+            if (since_data >= 60000) {
+              lv_obj_clear_flag(boot_screen, LV_OBJ_FLAG_HIDDEN);
+            }
+          }
+
+# -------------------------------------------------------------------
+# LVGL UI (absolute positions, no scroll surprises)
+# -------------------------------------------------------------------
+lvgl:
+  bg_color: ${c_bg}
+  update_interval: 33ms
+
+  pages:
+    - id: main_page
+      widgets:
+        - obj:
+            id: dot_data_rx
+            x: 460
+            y: 10
+            width: 10
+            height: 10
+            radius: 5
+            bg_color: "0xFF0000"
+            bg_opa: 0%
+            border_width: 0
+            hidden: true
+            floating: true
+
+        - label:
+            id: lbl_batt_val
+            x: 0
+            y: 345
+            width: 480
+            height: 28
+            text_align: center
+            text: "0.0 kW"
+            text_font: space_bold
+            text_color: "0xFFFFFF"
+            floating: true
+
+        # SOLAR value (centered at x=240)
+        - label:
+            id: lbl_solar_val
+            x: 0
+            y: 111
+            width: 480
+            height: 28
+            text_align: center
+            text: "0.0 kW"
+            text_font: space_bold
+            text_color: "0xFFFFFF"
+            floating: true
+
+        - label:
+            id: lbl_grid_val
+            x: 62
+            y: 240
+            width: 100
+            height: 28
+            text_align: center
+            text: "0.0 kW"
+            text_font: space_bold
+            text_color: "0xFFFFFF"
+            floating: true
+
+        - label:
+            id: lbl_home_val
+            x: 318
+            y: 240
+            width: 100
+            height: 28
+            text_align: center
+            text: "0.0 kW"
+            text_font: space_bold
+            text_color: "0xFFFFFF"
+            floating: true
+
+        - label:
+            id: lbl_soc
+            x: 0
+            y: 413
+            width: 480
+            height: 39
+            text_align: center
+            text: " "
+            text_font: space_bold_large
+            text_color: "${c_white}"
+            floating: true
+            recolor: true
+
+        - label:
+            id: lbl_soc_offgrid
+            x: 84
+            y: 413
+            width: 94
+            height: 39
+            text_align: left
+            text: " "
+            text_font: space_bold_large
+            text_color: "${c_white}"
+            floating: true
+            recolor: true
+            hidden: true
+        
+        - label:
+            id: lbl_time_remaining
+            x: 150
+            y: 413
+            width: 250
+            height: 39
+            text_align: right
+            text: " "
+            text_font: space_bold_large
+            text_color: "${c_white}"
+            floating: true
+            recolor: true
+            hidden: true
+
+        # SoC bar + %
+        - bar:
+            id: bar_soc
+            x: 82
+            y: 454
+            width: 316
+            height: 13
+            min_value: 0
+            max_value: 100
+            value: 0
+            bg_opa: 30%
+            bg_color: "0x16181C"
+            floating: true
+            border_width: 1
+            border_color: "0x5A5A5A"
+            indicator:
+              bg_color: "0x22C55E"
+              bg_opa: 100%
+          
+
+        # -------------------------------------------------------------------
+        # animated dots (initially hidden until values arrive)
+        # -------------------------------------------------------------------
+        - obj:
+            id: dot_solar_home
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_home_2
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_home_3
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_batt
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_batt_2
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_batt_3
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_grid
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_grid_2
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_solar_grid_3
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_yellow}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_grid_home
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_neutral}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_grid_home_2
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_neutral}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_grid_home_3
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_neutral}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_grid_batt
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_neutral}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_grid_batt_2
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_neutral}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_grid_batt_3
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_neutral}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_batt_home
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_green}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_batt_home_2
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_green}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_batt_home_3
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_green}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_batt_grid
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_green}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_batt_grid_2
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_green}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - obj:
+            id: dot_batt_grid_3
+            width: 12
+            height: 12
+            radius: 6
+            bg_color: ${c_line_green}
+            bg_opa: 0%
+            border_width: 0
+            floating: true
+
+        - image:
+            id: bg_layout
+            src: layout
+            x: 0
+            y: 0
+            floating: true
+            width: 480
+            height: 480
+
+        - obj:
+            id: solar_disable_overlay
+            width: 70
+            height: 106
+            bg_color: "0x0A0C10"
+            floating: true
+            x: 205
+            y: 31
+            radius: 0
+            bg_opa: 80%
+            border_opa: TRANSP
+            hidden: true
+
+        - obj:
+            id: battery_disable_overlay
+            width: 70
+            height: 106
+            bg_color: "0x0A0C10"
+            floating: true
+            x: 206
+            y: 265
+            radius: 0
+            bg_opa: 80%
+            border_opa: TRANSP
+            hidden: true
+
+        - image:
+            id: grid_disable_overlay
+            src: grid_offline
+            x: 77
+            y: 159
+            hidden: true
+
+        - obj:
+            id: boot_screen
+            x: 0
+            y: 0
+            width: 100%
+            height: 100%
+            bg_color: 0x0A0C10
+            bg_opa: COVER
+            radius: 0
+            pad_all: 0
+            border_width: 0
+            widgets:
+              - spinner:
+                  align: CENTER
+                  height: 80
+                  width: 80
+                  spin_time: 1s
+                  arc_length: 60deg
+                  arc_width: 10
+                  arc_color: 0x313336
+                  indicator:
+                    arc_color: 0x137FEC
+                    arc_width: 10
