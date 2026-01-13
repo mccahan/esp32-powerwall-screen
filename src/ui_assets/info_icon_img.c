@@ -16,7 +16,7 @@
 #define LV_ATTRIBUTE_MEM_ALIGN
 #endif
 
-const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST uint16_t info_icon_map[] = {
+const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST uint16_t info_icon_img_map[] = {
     0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 
     0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 
     0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 0x0862, 
@@ -209,12 +209,12 @@ const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST uint16_t info_icon_map[] =
     0x0862, 
 };
 
-const lv_img_dsc_t info_icon = {
+const lv_img_dsc_t info_icon_img = {
     .header.cf = LV_IMG_CF_TRUE_COLOR,
     .header.always_zero = 0,
     .header.reserved = 0,
     .header.w = 55,
     .header.h = 55,
     .data_size = 6050,
-    .data = (uint8_t *)(info_icon_map),
+    .data = (uint8_t *)(info_icon_img_map),
 };

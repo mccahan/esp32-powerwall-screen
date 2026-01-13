@@ -142,11 +142,7 @@ void setup() {
     }
 
     if (saved_ssid.length() > 0) {
-        updateStatusLabel("Connecting to WiFi...");
-        lv_timer_handler();
         connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
-    } else {
-        updateStatusLabel("Configure WiFi via\nESP Web Tools");
     }
     
     // Setup MQTT callbacks
@@ -173,7 +169,7 @@ void loop() {
     loopImprov();
     checkWiFiConnection();
     updateDataRxPulse();
-    updateMQTTStatus();
+    updatePowerFlowAnimation();
 
     // Update info screen data if visible
     if (isInfoScreenVisible()) {
@@ -186,8 +182,6 @@ void loop() {
             hideBootScreen();
         }
     }
-
-    delay(5);
 }
 
 void setupDisplay() {

@@ -18,8 +18,8 @@
 #define LV_DPI_DEF 130
 
 /* Feature usage */
-#define LV_USE_PERF_MONITOR 1
-#define LV_USE_MEM_MONITOR 1
+#define LV_USE_PERF_MONITOR 0
+#define LV_USE_MEM_MONITOR 0
 
 /* Input device settings */
 #define LV_INDEV_DEF_READ_PERIOD 30

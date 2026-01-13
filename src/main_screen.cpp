@@ -39,6 +39,9 @@
 #define COLOR_BAR_BG    0x16181C
 #define COLOR_BAR_FILL  0x22C55E
 
+// Animation timing constants
+#define ANIMATION_FRAME_MS  33  // ~30 FPS (matches ESPHome 33ms update_interval)
+
 // UI elements - Main dashboard
 static lv_obj_t *main_screen = nullptr;
 
@@ -52,12 +55,14 @@ static lv_obj_t *lbl_batt_val = nullptr;
 static lv_obj_t *lbl_soc = nullptr;
 static lv_obj_t *bar_soc = nullptr;
 
-// Layout background and overlays
-static lv_obj_t *img_layout = nullptr;
+// Icon images
+static lv_obj_t *img_solar = nullptr;
+static lv_obj_t *img_grid = nullptr;
 static lv_obj_t *img_grid_offline = nullptr;
+static lv_obj_t *img_home = nullptr;
+static lv_obj_t *img_battery = nullptr;
+static lv_obj_t *img_center = nullptr;
 
-// Status/WiFi label
-static lv_obj_t *lbl_status = nullptr;
 
 // Data RX indicator dot
 static lv_obj_t *dot_data_rx = nullptr;
@@ -65,16 +70,46 @@ static lv_obj_t *dot_data_rx = nullptr;
 // Info button
 static lv_obj_t *btn_info = nullptr;
 
+// Animated dots for power flow visualization (3 dots per flow path)
+static lv_obj_t *dot_solar_home = nullptr;
+static lv_obj_t *dot_solar_home_2 = nullptr;
+static lv_obj_t *dot_solar_home_3 = nullptr;
+static lv_obj_t *dot_solar_batt = nullptr;
+static lv_obj_t *dot_solar_batt_2 = nullptr;
+static lv_obj_t *dot_solar_batt_3 = nullptr;
+static lv_obj_t *dot_solar_grid = nullptr;
+static lv_obj_t *dot_solar_grid_2 = nullptr;
+static lv_obj_t *dot_solar_grid_3 = nullptr;
+static lv_obj_t *dot_grid_home = nullptr;
+static lv_obj_t *dot_grid_home_2 = nullptr;
+static lv_obj_t *dot_grid_home_3 = nullptr;
+static lv_obj_t *dot_grid_batt = nullptr;
+static lv_obj_t *dot_grid_batt_2 = nullptr;
+static lv_obj_t *dot_grid_batt_3 = nullptr;
+static lv_obj_t *dot_batt_home = nullptr;
+static lv_obj_t *dot_batt_home_2 = nullptr;
+static lv_obj_t *dot_batt_home_3 = nullptr;
+static lv_obj_t *dot_batt_grid = nullptr;
+static lv_obj_t *dot_batt_grid_2 = nullptr;
+static lv_obj_t *dot_batt_grid_3 = nullptr;
+
 // Forward declaration for info button callback
 static void info_btn_event_cb(lv_event_t *e);
 
 // Timing variables for pulse animation
 unsigned long last_data_ms = 0;
 static unsigned long last_pulse_ms = 0;
+static unsigned long last_pulse_update_ms = 0;  // Throttle pulse updates
 
-// MQTT status monitoring
-static unsigned long last_mqtt_status_update = 0;
-static bool last_mqtt_status = false;
+
+// Power flow animation state
+static float g_grid_w = 0.0f;
+static float g_home_w = 0.0f;
+static float g_solar_w = 0.0f;
+static float g_batt_w = 0.0f;
+static float g_soc = 0.0f;
+static float ph_master = 0.0f;
+static unsigned long g_last_anim_ms = 0;
 
 void createMainDashboard() {
     // Main screen with dark background
@@ -83,12 +118,67 @@ void createMainDashboard() {
     lv_obj_clear_flag(main_screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_scr_load(main_screen);
 
-    // ========== Layout Background Image (must be created FIRST so labels appear on top) ==========
-    img_layout = lv_img_create(main_screen);
-    lv_img_set_src(img_layout, &layout_img);
-    lv_obj_set_pos(img_layout, 0, 0);
-    lv_obj_set_size(img_layout, TFT_WIDTH, TFT_HEIGHT);
-    lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
+    // ========== Animated Power Flow Dots (created first so they appear under layout) ==========
+    // Helper lambda to create a dot
+    auto create_dot = [&](uint32_t color) -> lv_obj_t* {
+        lv_obj_t *dot = lv_obj_create(main_screen);
+        lv_obj_set_size(dot, 12, 12);
+        lv_obj_set_style_radius(dot, 6, 0);
+        lv_obj_set_style_bg_color(dot, lv_color_hex(color), 0);
+        lv_obj_set_style_bg_opa(dot, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(dot, 0, 0);
+        lv_obj_add_flag(dot, LV_OBJ_FLAG_FLOATING);
+        lv_obj_clear_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
+        return dot;
+    };
+
+    // Solar flows (yellow dots)
+    dot_solar_home = create_dot(COLOR_SOLAR);
+    dot_solar_home_2 = create_dot(COLOR_SOLAR);
+    dot_solar_home_3 = create_dot(COLOR_SOLAR);
+    dot_solar_batt = create_dot(COLOR_SOLAR);
+    dot_solar_batt_2 = create_dot(COLOR_SOLAR);
+    dot_solar_batt_3 = create_dot(COLOR_SOLAR);
+    dot_solar_grid = create_dot(COLOR_SOLAR);
+    dot_solar_grid_2 = create_dot(COLOR_SOLAR);
+    dot_solar_grid_3 = create_dot(COLOR_SOLAR);
+
+    // Grid flows (gray dots)
+    dot_grid_home = create_dot(COLOR_GRID);
+    dot_grid_home_2 = create_dot(COLOR_GRID);
+    dot_grid_home_3 = create_dot(COLOR_GRID);
+    dot_grid_batt = create_dot(COLOR_GRID);
+    dot_grid_batt_2 = create_dot(COLOR_GRID);
+    dot_grid_batt_3 = create_dot(COLOR_GRID);
+
+    // Battery flows (green dots)
+    dot_batt_home = create_dot(COLOR_BATTERY);
+    dot_batt_home_2 = create_dot(COLOR_BATTERY);
+    dot_batt_home_3 = create_dot(COLOR_BATTERY);
+    dot_batt_grid = create_dot(COLOR_BATTERY);
+    dot_batt_grid_2 = create_dot(COLOR_BATTERY);
+    dot_batt_grid_3 = create_dot(COLOR_BATTERY);
+
+    // ========== Icon Images (created after dots so dots appear underneath) ==========
+    img_solar = lv_img_create(main_screen);
+    lv_img_set_src(img_solar, &icon_solar_img);
+    lv_obj_set_pos(img_solar, 205, 31);
+
+    img_grid = lv_img_create(main_screen);
+    lv_img_set_src(img_grid, &icon_grid_img);
+    lv_obj_set_pos(img_grid, 77, 159);
+
+    img_home = lv_img_create(main_screen);
+    lv_img_set_src(img_home, &icon_home_img);
+    lv_obj_set_pos(img_home, 333, 159);
+
+    img_battery = lv_img_create(main_screen);
+    lv_img_set_src(img_battery, &icon_battery_img);
+    lv_obj_set_pos(img_battery, 206, 265);
+
+    img_center = lv_img_create(main_screen);
+    lv_img_set_src(img_center, &icon_center_img);
+    lv_obj_set_pos(img_center, 209, 163);
 
     // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
     // Battery value - centered at bottom
@@ -163,18 +253,9 @@ void createMainDashboard() {
 
     // ========== Grid Offline Overlay ==========
     img_grid_offline = lv_img_create(main_screen);
-    lv_img_set_src(img_grid_offline, &grid_offline_img);
-    lv_obj_set_pos(img_grid_offline, GRID_OFFLINE_X, GRID_OFFLINE_Y);
+    lv_img_set_src(img_grid_offline, &icon_grid_offline_img);
+    lv_obj_set_pos(img_grid_offline, 77, 159);
     lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
-
-    // ========== Status/WiFi Label ==========
-    lbl_status = lv_label_create(main_screen);
-    lv_label_set_text(lbl_status, "");
-    lv_obj_set_style_text_color(lbl_status, lv_color_hex(0x6A6A6A), 0);
-    lv_obj_set_style_text_font(lbl_status, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_align(lbl_status, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_status, TFT_WIDTH);
-    lv_obj_align(lbl_status, LV_ALIGN_BOTTOM_MID, 0, -10);
 
     // ========== Data RX Indicator Dot ==========
     dot_data_rx = lv_obj_create(main_screen);
@@ -190,7 +271,7 @@ void createMainDashboard() {
 
     // ========== Info Button (top right corner) ==========
     btn_info = lv_imgbtn_create(main_screen);
-    lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon, NULL);
+    lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon_img, NULL);
     lv_obj_set_size(btn_info, 55, 55);
     lv_obj_set_pos(btn_info, TFT_WIDTH - 65, 10);
     lv_obj_add_event_cb(btn_info, info_btn_event_cb, LV_EVENT_CLICKED, NULL);
@@ -205,18 +286,19 @@ lv_obj_t* getMainScreen() {
     return main_screen;
 }
 
-void updateStatusLabel(const char* status) {
-    if (lbl_status) {
-        lv_label_set_text(lbl_status, status);
-    }
-}
-
 // ============== Data RX Pulse Animation ==============
 
 void updateDataRxPulse() {
     if (!dot_data_rx) return;
     
     const unsigned long now = millis();
+    
+    // Throttle updates to ~30 FPS
+    if (now - last_pulse_update_ms < ANIMATION_FRAME_MS) {
+        return;
+    }
+    last_pulse_update_ms = now;
+    
     const unsigned long since_data = now - last_data_ms;
     const unsigned long since_pulse = now - last_pulse_ms;
     
@@ -247,43 +329,11 @@ void updateDataRxPulse() {
     }
 }
 
-// ============== MQTT Status Monitoring ==============
-
-void updateMQTTStatus() {
-    // Check MQTT status every 5 seconds and update UI if changed
-    unsigned long now = millis();
-    if (now - last_mqtt_status_update < 5000) {
-        return;
-    }
-    last_mqtt_status_update = now;
-    
-    bool mqtt_connected = mqttClient.isConnected();
-    
-    // Only update if status changed
-    if (mqtt_connected != last_mqtt_status) {
-        last_mqtt_status = mqtt_connected;
-        
-        // Update status label only if WiFi is connected
-        if (WiFi.status() == WL_CONNECTED) {
-            String ip = WiFi.localIP().toString();
-            String status = "WiFi: " + WiFi.SSID() + " | ";
-            
-            if (mqtt_connected) {
-                status += "MQTT: Connected";
-            } else {
-                status += "MQTT: Disconnected";
-            }
-            status += " | Config: http://" + ip;
-            
-            updateStatusLabel(status.c_str());
-        }
-    }
-}
-
 // ============== Power Value Update Functions ==============
 // These will be called when MQTT data arrives
 
 void updateSolarValue(float watts) {
+    g_solar_w = watts;  // Store for animation
     if (lbl_solar_val) {
         char buf[24];
         float kw = watts / 1000.0f;
@@ -294,6 +344,7 @@ void updateSolarValue(float watts) {
 }
 
 void updateGridValue(float watts) {
+    g_grid_w = watts;  // Store for animation
     if (lbl_grid_val) {
         char buf[24];
         float kw = watts / 1000.0f;
@@ -304,6 +355,7 @@ void updateGridValue(float watts) {
 }
 
 void updateHomeValue(float watts) {
+    g_home_w = watts;  // Store for animation
     if (lbl_home_val) {
         char buf[24];
         float kw = watts / 1000.0f;
@@ -314,6 +366,7 @@ void updateHomeValue(float watts) {
 }
 
 void updateBatteryValue(float watts) {
+    g_batt_w = watts;  // Store for animation
     if (lbl_batt_val) {
         char buf[24];
         float kw = watts / 1000.0f;
@@ -324,6 +377,7 @@ void updateBatteryValue(float watts) {
 }
 
 void updateSOC(float soc_percent) {
+    g_soc = soc_percent;  // Store for animation
     // Adjust for 5% reserve like ESPHome config
     float adjusted = (soc_percent / 0.95f) - (5.0f / 0.95f);
     if (adjusted < 0) adjusted = 0;
@@ -340,4 +394,260 @@ void updateSOC(float soc_percent) {
     }
     
     last_data_ms = millis();
+}
+
+// ============== Power Flow Dot Animation ==============
+
+// Helper functions for animation (defined once, outside the main animation function)
+namespace {
+    inline float clampf(float v, float a, float b) {
+        return (v < a) ? a : ((v > b) ? b : v);
+    }
+    
+    inline int lerp_i(int a, int b, float t) {
+        return (int)lroundf((float)a + ((float)b - (float)a) * t);
+    }
+}
+
+void updatePowerFlowAnimation() {
+    // Geometry - positions of each power element
+    const int SX = 240, SY = 80;   // Solar
+    const int HX = 360, HY = 194;  // Home
+    const int BX = 240, BY = 280;  // Battery
+    const int GX = 120, GY = 194;  // Grid
+    const int CX = 240, CY = 194;  // Center
+
+    const float THRESH_W = 50.0f;
+    const float FADE = 0.12f;
+    const int DOT_R = 6;
+    
+    // Animation speed parameters
+    const float SPEED_DIVISOR = 2500.0f;    // Normalize power to speed
+    const float MIN_SPEED = 0.18f;          // Minimum animation speed
+    const float MAX_SPEED = 0.25f;          // Maximum animation speed
+    
+    // Opacity mapping parameters
+    const float OPACITY_SCALE = 200.0f;     // Scale factor for opacity calculation
+    const float OPACITY_FLOOR = 10.0f;      // Minimum opacity value
+    
+    // Battery state of charge threshold
+    const float BATTERY_FULL_THRESHOLD = 99.5f;  // Consider battery full at this SOC
+    
+    // Inline helper for setting dot position
+    auto set_dot_pos = [DOT_R](lv_obj_t* dot, int x, int y) {
+        lv_obj_set_pos(dot, x - DOT_R, y - DOT_R);
+    };
+    
+    // Inline helper for setting dot opacity
+    auto set_dot_opa = [OPACITY_SCALE, OPACITY_FLOOR](lv_obj_t* dot, float alpha) {
+        alpha = clampf(alpha, 0.0f, 1.0f);
+        float opa_float = (alpha * OPACITY_SCALE) + OPACITY_FLOOR;
+        if (opa_float > (float)LV_OPA_MAX) opa_float = (float)LV_OPA_MAX;
+        lv_obj_set_style_bg_opa(dot, (lv_opa_t)lroundf(opa_float), 0);
+    };
+
+    
+    // Place dot on two-segment path and animate
+    auto animate_dot = [&](lv_obj_t* dot, float t, float watts,
+                           int x_src, int y_src, int x_sink, int y_sink) {
+        if (watts < THRESH_W) {
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+            return;
+        }
+        
+        lv_obj_clear_flag(dot, LV_OBJ_FLAG_HIDDEN);
+        
+        // Clamp t to [0, 1]
+        t = clampf(t, 0.0f, 1.0f);
+        
+        // Calculate position on two-segment path
+        int x, y;
+        if (t < 0.5f) {
+            // First segment: source → center
+            float seg_t = t * 2.0f;
+            x = lerp_i(x_src, CX, seg_t);
+            y = lerp_i(y_src, CY, seg_t);
+        } else {
+            // Second segment: center → sink
+            float seg_t = (t - 0.5f) * 2.0f;
+            x = lerp_i(CX, x_sink, seg_t);
+            y = lerp_i(CY, y_sink, seg_t);
+        }
+        
+        set_dot_pos(dot, x, y);
+        
+        // Calculate fade alpha
+        float alpha = 1.0f;
+        if (t < FADE) {
+            alpha = t / FADE;
+        } else if (t > (1.0f - FADE)) {
+            alpha = (1.0f - t) / FADE;
+        }
+        set_dot_opa(dot, alpha);
+    };
+
+    // Read instantaneous powers
+    const float grid_w = g_grid_w;
+    const float home_w = g_home_w;
+    const float solar_w = g_solar_w;
+    const float batt_w = g_batt_w;
+    const float soc = g_soc;
+
+    float solar_src = solar_w > 0 ? solar_w : 0;
+    float grid_src = grid_w > 0 ? grid_w : 0;
+    float batt_src = batt_w > 0 ? batt_w : 0;
+
+    float home_sink = home_w > 0 ? home_w : 0;
+    float batt_sink = batt_w < 0 ? -batt_w : 0;
+    float grid_sink = grid_w < 0 ? -grid_w : 0;
+
+    // Flow allocation (visual only)
+    float f_s2h = 0, f_s2b = 0, f_s2g = 0;
+    float f_g2h = 0, f_g2b = 0;
+    float f_b2h = 0, f_b2g = 0;
+
+    float rem_solar = solar_src;
+    float rem_home = home_sink;
+    float rem_batt = batt_sink;
+    float rem_grid = grid_sink;
+
+    // Priority: solar to battery first (if not full)
+    if (rem_solar > 0 && rem_batt > 0 && soc < BATTERY_FULL_THRESHOLD) {
+        f_s2b = fminf(rem_solar, rem_batt);
+        rem_solar -= f_s2b;
+        rem_batt -= f_s2b;
+    }
+
+    // Solar to home
+    if (rem_solar > 0 && rem_home > 0) {
+        f_s2h = fminf(rem_solar, rem_home);
+        rem_solar -= f_s2h;
+        rem_home -= f_s2h;
+    }
+
+    // Solar to grid (export)
+    if (rem_solar > 0 && rem_grid > 0) {
+        f_s2g = fminf(rem_solar, rem_grid);
+        rem_solar -= f_s2g;
+        rem_grid -= f_s2g;
+    }
+
+    // Grid to battery
+    float rem_grid_src = grid_src;
+    if (rem_grid_src > 0 && rem_batt > 0) {
+        f_g2b = fminf(rem_grid_src, rem_batt);
+        rem_grid_src -= f_g2b;
+        rem_batt -= f_g2b;
+    }
+
+    // Grid to home
+    if (rem_grid_src > 0 && rem_home > 0) {
+        f_g2h = fminf(rem_grid_src, rem_home);
+        rem_grid_src -= f_g2h;
+        rem_home -= f_g2h;
+    }
+
+    // Battery to home
+    float rem_batt_src = batt_src;
+    if (rem_batt_src > 0 && rem_home > 0) {
+        f_b2h = fminf(rem_batt_src, rem_home);
+        rem_batt_src -= f_b2h;
+        rem_home -= f_b2h;
+    }
+
+    // Battery to grid (export)
+    if (rem_batt_src > 0 && rem_grid > 0) {
+        f_b2g = fminf(rem_batt_src, rem_grid);
+        rem_batt_src -= f_b2g;
+        rem_grid -= f_b2g;
+    }
+
+    // Find max active flow
+    float max_active = 0.0f;
+    auto consider = [&](float w) {
+        if (w >= THRESH_W && w > max_active) max_active = w;
+    };
+
+    consider(f_s2h); consider(f_s2b); consider(f_s2g);
+    consider(f_g2h); consider(f_g2b);
+    consider(f_b2h); consider(f_b2g);
+
+    // If no active flows, hide all dots
+    if (max_active < THRESH_W) {
+        lv_obj_t* all_dots[] = {
+            dot_solar_home, dot_solar_home_2, dot_solar_home_3,
+            dot_solar_batt, dot_solar_batt_2, dot_solar_batt_3,
+            dot_solar_grid, dot_solar_grid_2, dot_solar_grid_3,
+            dot_grid_home, dot_grid_home_2, dot_grid_home_3,
+            dot_grid_batt, dot_grid_batt_2, dot_grid_batt_3,
+            dot_batt_home, dot_batt_home_2, dot_batt_home_3,
+            dot_batt_grid, dot_batt_grid_2, dot_batt_grid_3
+        };
+        for (auto dot : all_dots) {
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+        }
+        g_last_anim_ms = 0;  // Reset animation time
+        return;
+    }
+
+    // Calculate elapsed time and throttle updates to ~30 FPS
+    const unsigned long now = millis();
+    const unsigned long last_anim = g_last_anim_ms;
+    unsigned long elapsed_ms;
+    
+    if (last_anim == 0 || now < last_anim) {
+        elapsed_ms = ANIMATION_FRAME_MS;
+    } else {
+        elapsed_ms = now - last_anim;
+    }
+    
+    // Throttle to ~30 FPS
+    if (elapsed_ms < ANIMATION_FRAME_MS && last_anim != 0) {
+        return;  // Skip this update, not enough time has passed
+    }
+    
+    const float dt_seconds = (float)elapsed_ms / 1000.0f;
+    g_last_anim_ms = now;
+
+    // Advance master phase
+    float speed = clampf(max_active / SPEED_DIVISOR, MIN_SPEED, MAX_SPEED);
+    ph_master += speed * dt_seconds;
+    if (ph_master >= 1.0f) ph_master -= floorf(ph_master);
+
+    // Calculate phases for 3 dots evenly spaced (no easing needed for linear)
+    const float phase_1 = ph_master;
+    const float phase_2 = fmodf(ph_master + 0.33333f, 1.0f);
+    const float phase_3 = fmodf(ph_master + 0.66667f, 1.0f);
+
+    // Animate all flows
+    // Solar flows (yellow dots)
+    animate_dot(dot_solar_home, phase_1, f_s2h, SX, SY, HX, HY);
+    animate_dot(dot_solar_home_2, phase_2, f_s2h, SX, SY, HX, HY);
+    animate_dot(dot_solar_home_3, phase_3, f_s2h, SX, SY, HX, HY);
+    
+    animate_dot(dot_solar_batt, phase_1, f_s2b, SX, SY, BX, BY);
+    animate_dot(dot_solar_batt_2, phase_2, f_s2b, SX, SY, BX, BY);
+    animate_dot(dot_solar_batt_3, phase_3, f_s2b, SX, SY, BX, BY);
+    
+    animate_dot(dot_solar_grid, phase_1, f_s2g, SX, SY, GX, GY);
+    animate_dot(dot_solar_grid_2, phase_2, f_s2g, SX, SY, GX, GY);
+    animate_dot(dot_solar_grid_3, phase_3, f_s2g, SX, SY, GX, GY);
+
+    // Grid flows (gray dots)
+    animate_dot(dot_grid_home, phase_1, f_g2h, GX, GY, HX, HY);
+    animate_dot(dot_grid_home_2, phase_2, f_g2h, GX, GY, HX, HY);
+    animate_dot(dot_grid_home_3, phase_3, f_g2h, GX, GY, HX, HY);
+    
+    animate_dot(dot_grid_batt, phase_1, f_g2b, GX, GY, BX, BY);
+    animate_dot(dot_grid_batt_2, phase_2, f_g2b, GX, GY, BX, BY);
+    animate_dot(dot_grid_batt_3, phase_3, f_g2b, GX, GY, BX, BY);
+
+    // Battery flows (green dots)
+    animate_dot(dot_batt_home, phase_1, f_b2h, BX, BY, HX, HY);
+    animate_dot(dot_batt_home_2, phase_2, f_b2h, BX, BY, HX, HY);
+    animate_dot(dot_batt_home_3, phase_3, f_b2h, BX, BY, HX, HY);
+    
+    animate_dot(dot_batt_grid, phase_1, f_b2g, BX, BY, GX, GY);
+    animate_dot(dot_batt_grid_2, phase_2, f_b2g, BX, BY, GX, GY);
+    animate_dot(dot_batt_grid_3, phase_3, f_b2g, BX, BY, GX, GY);
 }
