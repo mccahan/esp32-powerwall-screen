@@ -114,10 +114,17 @@ void setup() {
     setupImprovWiFi();
 
     // Try to connect with saved credentials
-    preferences.begin("wifi", true);
-    String saved_ssid = preferences.getString("ssid", "");
-    String saved_pass = preferences.getString("password", "");
-    preferences.end();
+    String saved_ssid = "";
+    String saved_pass = "";
+
+    // Open in read-write mode to create namespace if it doesn't exist
+    if (preferences.begin("wifi", false)) {
+        if (preferences.isKey("ssid")) {
+            saved_ssid = preferences.getString("ssid", "");
+            saved_pass = preferences.getString("password", "");
+        }
+        preferences.end();
+    }
 
     if (saved_ssid.length() > 0) {
         updateStatusUI("Connecting to saved WiFi...", 0xFFFF00);
