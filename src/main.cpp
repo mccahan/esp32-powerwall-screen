@@ -5,6 +5,8 @@
 #include <improv.h>
 #include <Preferences.h>
 #include "ui_assets/ui_assets.h"
+#include "mqtt_client.h"
+#include "web_server.h"
 
 // Device info
 #define DEVICE_NAME "Powerwall Display"
@@ -134,6 +136,13 @@ void connectToWiFi(const char* ssid, const char* password);
 void checkWiFiConnection();
 String getLocalIP();
 
+// Power value update functions (forward declarations)
+void updateSolarValue(float watts);
+void updateGridValue(float watts);
+void updateHomeValue(float watts);
+void updateBatteryValue(float watts);
+void updateSOC(float soc_percent);
+
 // LVGL display flush callback
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) {
     uint32_t w = (area->x2 - area->x1 + 1);
@@ -193,6 +202,19 @@ void setup() {
     } else {
         updateStatusLabel("Configure WiFi via\nESP Web Tools");
     }
+    
+    // Setup MQTT callbacks
+    mqttClient.setSolarCallback(updateSolarValue);
+    mqttClient.setGridCallback(updateGridValue);
+    mqttClient.setHomeCallback(updateHomeValue);
+    mqttClient.setBatteryCallback(updateBatteryValue);
+    mqttClient.setSOCCallback(updateSOC);
+    
+    // Initialize MQTT client (will load config from flash)
+    mqttClient.begin();
+    
+    // Start web server (will be accessible after WiFi connects)
+    webServer.begin();
 }
 
 void loop() {
@@ -623,10 +645,13 @@ void checkWiFiConnection() {
         // Hide boot screen and show dashboard
         hideBootScreen();
 
-        String status = "WiFi: " + WiFi.SSID() + " | IP: " + ip;
+        String status = "WiFi: " + WiFi.SSID() + " | Config: http://" + ip;
         updateStatusLabel(status.c_str());
 
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
+        
+        // Now that WiFi is connected, connect to MQTT broker
+        mqttClient.connect();
     }
     else if (millis() - wifi_connect_start > WIFI_CONNECT_TIMEOUT) {
         wifi_connecting = false;

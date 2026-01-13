@@ -49,6 +49,21 @@ Improv Serial protocol enables browser-based WiFi setup via ESP Web Tools:
 - Credentials stored in ESP32 NVS (Preferences library)
 - RPC commands: `WIFI_SETTINGS`, `GET_CURRENT_STATE`, `GET_DEVICE_INFO`, `GET_WIFI_NETWORKS`
 
+### MQTT Data Integration
+
+Asynchronous MQTT client (`mqtt_client.cpp`) subscribes to pypowerwall topics:
+- **AsyncMqttClient**: Non-blocking MQTT operations via background tasks
+- **Configuration**: Stored in NVS, editable via web interface at `http://<device-ip>/config`
+- **Topics**: `{prefix}solar/instant_power`, `battery/instant_power`, `load/instant_power`, etc.
+- **Callbacks**: Direct updates to LVGL UI via registered callback functions
+
+### Web Server
+
+ESPAsyncWebServer (`web_server.cpp`) provides configuration interface:
+- **Port 80**: Accessible at device IP after WiFi connection
+- **Endpoints**: `/config` (UI), `/api/mqtt` (GET/POST for settings)
+- **Storage**: MQTT settings saved to NVS flash
+
 ### Key Hardware Configuration
 
 - **Platform**: espressif32@6.8.1 (must use this version for Arduino_GFX v1.2.9 compatibility)
@@ -57,13 +72,13 @@ Improv Serial protocol enables browser-based WiFi setup via ESP Web Tools:
 
 ### Power Display Integration Points
 
-Functions in `main.cpp` ready for MQTT data:
+Functions in `main.cpp` called by MQTT callbacks:
 ```cpp
-updateSolarValue(watts)    // Yellow
-updateGridValue(watts)     // Gray
-updateHomeValue(watts)     // Blue
-updateBatteryValue(watts)  // Green
-updateSOC(percent)         // Battery percentage bar
+updateSolarValue(watts)    // Yellow - from {prefix}solar/instant_power
+updateGridValue(watts)     // Gray - from {prefix}site/instant_power
+updateHomeValue(watts)     // Blue - from {prefix}load/instant_power
+updateBatteryValue(watts)  // Green - from {prefix}battery/instant_power
+updateSOC(percent)         // Battery percentage bar - from {prefix}battery/level
 ```
 
 ## Critical Dependencies

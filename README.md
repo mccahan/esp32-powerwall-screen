@@ -9,6 +9,8 @@ Display Tesla Powerwall system status on a 480x480 ESP32-S3 display.
 - 🔌 **Web-based Flashing**: Install firmware directly from your browser using ESP Web Tools
 - 💾 **ESP32-S3**: Optimized for ESP32-S3 devices with 16MB flash
 - ⚡ **Hardware Support**: Designed for Guition ESP32-S3-4848S040
+- 🌐 **Web Configuration**: Configure MQTT settings via web interface
+- 📊 **Real-time MQTT**: Async MQTT client for real-time power data updates
 
 ## Hardware Requirements
 
@@ -54,6 +56,35 @@ After flashing the firmware, configure WiFi using Improv:
 3. Follow the Improv WiFi setup prompts
 4. Enter your WiFi credentials
 
+## MQTT Configuration
+
+Once WiFi is connected, configure MQTT to receive real-time power data:
+
+1. Note the IP address shown on the display status bar
+2. Open a web browser and navigate to `http://<device-ip>/config`
+3. Configure the following settings:
+   - **MQTT Host**: Your MQTT broker hostname or IP
+   - **MQTT Port**: Usually 1883 (default)
+   - **MQTT Username**: Optional authentication username
+   - **MQTT Password**: Optional authentication password
+   - **Topic Prefix**: Match your pypowerwall setup (default: `pypowerwall/`)
+4. Click "Save Configuration"
+5. The display will automatically connect to your MQTT broker
+
+### Expected MQTT Topics
+
+The display subscribes to the following topics (with configurable prefix):
+
+- `{prefix}solar/instant_power` - Solar power (W)
+- `{prefix}site/instant_power` - Grid power (W) 
+- `{prefix}load/instant_power` - Home/Load power (W)
+- `{prefix}battery/instant_power` - Battery power (W)
+- `{prefix}battery/level` - Battery state of charge (%)
+- `{prefix}site/offgrid` - Grid connection status (1=off-grid, 0=on-grid)
+- `{prefix}battery/time_remaining` - Backup time remaining (hours)
+
+These topics are published by [pypowerwall](https://github.com/jasonacox/pypowerwall) when configured with MQTT support.
+
 ## Development
 
 ### Project Structure
@@ -74,6 +105,12 @@ esp32-powerwall-screen/
 │   └── grid_offline.svg         # Grid offline indicator
 ├── include/
 │   └── lv_conf.h          # LVGL configuration
+│   ├── mqtt_client.cpp    # Async MQTT client implementation
+│   └── web_server.cpp     # Web server for configuration
+├── include/
+│   ├── lv_conf.h          # LVGL configuration
+│   ├── mqtt_client.h      # MQTT client header
+│   └── web_server.h       # Web server header
 ├── platformio.ini         # PlatformIO configuration
 └── .github/
     └── workflows/
