@@ -83,34 +83,22 @@ def convert_svg_to_lvgl_c(svg_file, output_file, var_name, width=None, height=No
             f.write('#endif\n\n')
             
             if use_alpha:
-                # For TRUE_COLOR_ALPHA, create combined data array (RGB565 + Alpha)
-                # LVGL expects: [R5G6B5_byte0, R5G6B5_byte1] for each pixel, followed by all alpha values
+                # For TRUE_COLOR_ALPHA, LVGL v8 expects interleaved format:
+                # For each pixel: [RGB565_low_byte, RGB565_high_byte, alpha_byte]
                 f.write(f'const LV_ATTRIBUTE_MEM_ALIGN LV_ATTRIBUTE_LARGE_CONST uint8_t {var_name}_map[] = {{\n')
                 
-                # Write color data (2 bytes per pixel in little-endian)
+                # Interleave RGB565 color data with alpha data
                 byte_count = 0
-                for pixel in pixels:
+                for i, pixel in enumerate(pixels):
                     if byte_count % 16 == 0:
                         f.write('    ')
-                    # Write RGB565 as two bytes (little-endian)
-                    f.write(f'0x{pixel & 0xFF:02x}, 0x{(pixel >> 8) & 0xFF:02x}, ')
-                    byte_count += 2
-                    if byte_count % 16 == 0:
+                    # Write RGB565 as two bytes (little-endian) followed by alpha
+                    f.write(f'0x{pixel & 0xFF:02x}, 0x{(pixel >> 8) & 0xFF:02x}, 0x{alphas[i]:02x}, ')
+                    byte_count += 3
+                    if byte_count % 15 == 0:  # 5 pixels per line (5 * 3 = 15 bytes)
                         f.write('\n')
                 
-                # Add newline if not already on new line
-                if byte_count % 16 != 0:
-                    f.write('\n')
-                
-                # Write alpha data
-                for i, alpha in enumerate(alphas):
-                    if (byte_count + i) % 16 == 0:
-                        f.write('    ')
-                    f.write(f'0x{alpha:02x}, ')
-                    if ((byte_count + i + 1) % 16 == 0):
-                        f.write('\n')
-                
-                if (byte_count + len(alphas)) % 16 != 0:
+                if byte_count % 15 != 0:
                     f.write('\n')
                 f.write('};\n\n')
             else:
@@ -134,9 +122,8 @@ def convert_svg_to_lvgl_c(svg_file, output_file, var_name, width=None, height=No
                 f.write('    .header.reserved = 0,\n')
                 f.write(f'    .header.w = {img_width},\n')
                 f.write(f'    .header.h = {img_height},\n')
-                f.write(f'    .data_size = {len(pixels) * 2 + len(alphas)},\n')
-                # For TRUE_COLOR_ALPHA, LVGL expects color data followed by alpha data
-                # We need to concatenate them in memory
+                # For TRUE_COLOR_ALPHA: 3 bytes per pixel (RGB565 + alpha)
+                f.write(f'    .data_size = {len(pixels) * 3},\n')
                 f.write(f'    .data = (uint8_t *)({var_name}_map),\n')
                 f.write('};\n')
             else:
