@@ -89,6 +89,9 @@ static const unsigned long WIFI_CONNECT_TIMEOUT = 30000;
 static unsigned long boot_start_time = 0;
 static const unsigned long BOOT_SCREEN_TIMEOUT = 5000; // 5 seconds
 
+// LVGL tick tracking
+static unsigned long last_tick = 0;
+
 // Preferences for storing WiFi credentials
 Preferences preferences;
 
@@ -173,6 +176,11 @@ void setup() {
 }
 
 void loop() {
+    // Update LVGL tick for animations
+    unsigned long now = millis();
+    lv_tick_inc(now - last_tick);
+    last_tick = now;
+
     lv_timer_handler();
     loopImprov();
     checkWiFiConnection();
