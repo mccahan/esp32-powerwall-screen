@@ -422,6 +422,17 @@ void updateSOC(float soc_percent) {
 
 // ============== Power Flow Dot Animation ==============
 
+// Helper functions for animation (defined once, outside the main animation function)
+namespace {
+    inline float clampf(float v, float a, float b) {
+        return (v < a) ? a : ((v > b) ? b : v);
+    }
+    
+    inline int lerp_i(int a, int b, float t) {
+        return (int)lroundf((float)a + ((float)b - (float)a) * t);
+    }
+}
+
 void updatePowerFlowAnimation() {
     // Geometry - positions of each power element
     const int SX = 240, SY = 80;   // Solar
@@ -446,92 +457,58 @@ void updatePowerFlowAnimation() {
     
     // Battery state of charge threshold
     const float BATTERY_FULL_THRESHOLD = 99.5f;  // Consider battery full at this SOC
-
-    // Helper functions
-    auto clampf = [](float v, float a, float b) -> float {
-        if (v < a) return a;
-        if (v > b) return b;
-        return v;
-    };
-
-    auto lerp_i = [](int a, int b, float t) -> int {
-        return (int)lroundf((float)a + ((float)b - (float)a) * t);
-    };
-
-    auto set_dot_centered = [&](lv_obj_t* dot, int x, int y) {
+    
+    // Inline helper for setting dot position
+    auto set_dot_pos = [DOT_R](lv_obj_t* dot, int x, int y) {
         lv_obj_set_pos(dot, x - DOT_R, y - DOT_R);
     };
-
-    auto set_dot_alpha = [&](lv_obj_t* dot, float a01) {
-        a01 = clampf(a01, 0.0f, 1.0f);
-        // Calculate opacity value and clamp before casting to prevent overflow
-        float opa_float = (a01 * OPACITY_SCALE) + OPACITY_FLOOR;
+    
+    // Inline helper for setting dot opacity
+    auto set_dot_opa = [](lv_obj_t* dot, float alpha) {
+        alpha = clampf(alpha, 0.0f, 1.0f);
+        float opa_float = (alpha * 200.0f) + 10.0f;
         if (opa_float > (float)LV_OPA_MAX) opa_float = (float)LV_OPA_MAX;
-        lv_opa_t opa = (lv_opa_t)lroundf(opa_float);
-        lv_obj_set_style_bg_opa(dot, opa, 0);
+        lv_obj_set_style_bg_opa(dot, (lv_opa_t)lroundf(opa_float), 0);
     };
 
-    auto show_dot = [&](lv_obj_t* dot) {
-        lv_obj_clear_flag(dot, LV_OBJ_FLAG_HIDDEN);
-    };
-
-    auto hide_dot = [&](lv_obj_t* dot) {
-        lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
-    };
-
-    auto ease_linear = [&](float t) -> float {
-        return clampf(t, 0.0f, 1.0f);
-    };
-
-    auto advance_master_phase = [&](float ph, float max_watts_active, float dt_seconds) -> float {
-        float speed = clampf(max_watts_active / SPEED_DIVISOR, MIN_SPEED, MAX_SPEED);
-        ph += speed * dt_seconds;
-        if (ph >= 1.0f) ph -= floorf(ph);
-        return ph;
-    };
-
-    // Place dot on a two-segment path: source → center → sink
-    auto place_on_two_segment_path = [&](lv_obj_t* dot, float t,
-                                         int x_src, int y_src,
-                                         int x_sink, int y_sink) {
-        t = clampf(t, 0.0f, 1.0f);
-
-        const float MIDPOINT = 0.5f;
-        const float SEGMENT_SCALE = 2.0f;
-        
-        int x, y;
-        float segment_t;
-        
-        if (t < MIDPOINT) {
-            // First segment: source → center
-            segment_t = t * SEGMENT_SCALE;
-            x = lerp_i(x_src, CX, segment_t);
-            y = lerp_i(y_src, CY, segment_t);
-        } else {
-            // Second segment: center → sink
-            segment_t = (t - MIDPOINT) * SEGMENT_SCALE;
-            x = lerp_i(CX, x_sink, segment_t);
-            y = lerp_i(CY, y_sink, segment_t);
-        }
-
-        set_dot_centered(dot, x, y);
-
-        // Fade at the very start and very end
-        float a = 1.0f;
-        if (t < FADE) a = t / FADE;
-        else if (t > (1.0f - FADE)) a = (1.0f - t) / FADE;
-        set_dot_alpha(dot, a);
-    };
-
-    auto animate = [&](lv_obj_t* dot, float eased_t, float watts,
-                       int x_src, int y_src, int x_sink, int y_sink) {
+    
+    // Place dot on two-segment path and animate
+    auto animate_dot = [&](lv_obj_t* dot, float t, float watts,
+                           int x_src, int y_src, int x_sink, int y_sink) {
         if (watts < THRESH_W) {
-            hide_dot(dot);
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
             return;
         }
-
-        show_dot(dot);
-        place_on_two_segment_path(dot, eased_t, x_src, y_src, x_sink, y_sink);
+        
+        lv_obj_clear_flag(dot, LV_OBJ_FLAG_HIDDEN);
+        
+        // Clamp t to [0, 1]
+        t = clampf(t, 0.0f, 1.0f);
+        
+        // Calculate position on two-segment path
+        int x, y;
+        if (t < 0.5f) {
+            // First segment: source → center
+            float seg_t = t * 2.0f;
+            x = lerp_i(x_src, CX, seg_t);
+            y = lerp_i(y_src, CY, seg_t);
+        } else {
+            // Second segment: center → sink
+            float seg_t = (t - 0.5f) * 2.0f;
+            x = lerp_i(CX, x_sink, seg_t);
+            y = lerp_i(CY, y_sink, seg_t);
+        }
+        
+        set_dot_pos(dot, x, y);
+        
+        // Calculate fade alpha
+        float alpha = 1.0f;
+        if (t < FADE) {
+            alpha = t / FADE;
+        } else if (t > (1.0f - FADE)) {
+            alpha = (1.0f - t) / FADE;
+        }
+        set_dot_opa(dot, alpha);
     };
 
     // Read instantaneous powers
@@ -622,27 +599,18 @@ void updatePowerFlowAnimation() {
 
     // If no active flows, hide all dots
     if (max_active < THRESH_W) {
-        hide_dot(dot_solar_home);
-        hide_dot(dot_solar_home_2);
-        hide_dot(dot_solar_home_3);
-        hide_dot(dot_solar_batt);
-        hide_dot(dot_solar_batt_2);
-        hide_dot(dot_solar_batt_3);
-        hide_dot(dot_solar_grid);
-        hide_dot(dot_solar_grid_2);
-        hide_dot(dot_solar_grid_3);
-        hide_dot(dot_grid_home);
-        hide_dot(dot_grid_home_2);
-        hide_dot(dot_grid_home_3);
-        hide_dot(dot_grid_batt);
-        hide_dot(dot_grid_batt_2);
-        hide_dot(dot_grid_batt_3);
-        hide_dot(dot_batt_home);
-        hide_dot(dot_batt_home_2);
-        hide_dot(dot_batt_home_3);
-        hide_dot(dot_batt_grid);
-        hide_dot(dot_batt_grid_2);
-        hide_dot(dot_batt_grid_3);
+        lv_obj_t* all_dots[] = {
+            dot_solar_home, dot_solar_home_2, dot_solar_home_3,
+            dot_solar_batt, dot_solar_batt_2, dot_solar_batt_3,
+            dot_solar_grid, dot_solar_grid_2, dot_solar_grid_3,
+            dot_grid_home, dot_grid_home_2, dot_grid_home_3,
+            dot_grid_batt, dot_grid_batt_2, dot_grid_batt_3,
+            dot_batt_home, dot_batt_home_2, dot_batt_home_3,
+            dot_batt_grid, dot_batt_grid_2, dot_batt_grid_3
+        };
+        for (auto dot : all_dots) {
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+        }
         return;
     }
 
@@ -660,49 +628,45 @@ void updatePowerFlowAnimation() {
     const float dt_seconds = (float)elapsed_ms / 1000.0f;
     g_last_anim_ms = now;
 
-    ph_master = advance_master_phase(ph_master, max_active, dt_seconds);
+    // Advance master phase
+    float speed = clampf(max_active / SPEED_DIVISOR, MIN_SPEED, MAX_SPEED);
+    ph_master += speed * dt_seconds;
+    if (ph_master >= 1.0f) ph_master -= floorf(ph_master);
 
-    // Calculate phases for 3 dots evenly spaced
-    const float phase_offset_1 = 1.0f / 3.0f;
-    const float phase_offset_2 = 2.0f / 3.0f;
-    
+    // Calculate phases for 3 dots evenly spaced (no easing needed for linear)
     const float phase_1 = ph_master;
-    const float phase_2 = fmodf(ph_master + phase_offset_1, 1.0f);
-    const float phase_3 = fmodf(ph_master + phase_offset_2, 1.0f);
-
-    const float eased_t1 = ease_linear(phase_1);
-    const float eased_t2 = ease_linear(phase_2);
-    const float eased_t3 = ease_linear(phase_3);
+    const float phase_2 = fmodf(ph_master + 0.33333f, 1.0f);
+    const float phase_3 = fmodf(ph_master + 0.66667f, 1.0f);
 
     // Animate all flows
     // Solar flows (yellow dots)
-    animate(dot_solar_home, eased_t1, f_s2h, SX, SY, HX, HY);
-    animate(dot_solar_home_2, eased_t2, f_s2h, SX, SY, HX, HY);
-    animate(dot_solar_home_3, eased_t3, f_s2h, SX, SY, HX, HY);
+    animate_dot(dot_solar_home, phase_1, f_s2h, SX, SY, HX, HY);
+    animate_dot(dot_solar_home_2, phase_2, f_s2h, SX, SY, HX, HY);
+    animate_dot(dot_solar_home_3, phase_3, f_s2h, SX, SY, HX, HY);
     
-    animate(dot_solar_batt, eased_t1, f_s2b, SX, SY, BX, BY);
-    animate(dot_solar_batt_2, eased_t2, f_s2b, SX, SY, BX, BY);
-    animate(dot_solar_batt_3, eased_t3, f_s2b, SX, SY, BX, BY);
+    animate_dot(dot_solar_batt, phase_1, f_s2b, SX, SY, BX, BY);
+    animate_dot(dot_solar_batt_2, phase_2, f_s2b, SX, SY, BX, BY);
+    animate_dot(dot_solar_batt_3, phase_3, f_s2b, SX, SY, BX, BY);
     
-    animate(dot_solar_grid, eased_t1, f_s2g, SX, SY, GX, GY);
-    animate(dot_solar_grid_2, eased_t2, f_s2g, SX, SY, GX, GY);
-    animate(dot_solar_grid_3, eased_t3, f_s2g, SX, SY, GX, GY);
+    animate_dot(dot_solar_grid, phase_1, f_s2g, SX, SY, GX, GY);
+    animate_dot(dot_solar_grid_2, phase_2, f_s2g, SX, SY, GX, GY);
+    animate_dot(dot_solar_grid_3, phase_3, f_s2g, SX, SY, GX, GY);
 
     // Grid flows (gray dots)
-    animate(dot_grid_home, eased_t1, f_g2h, GX, GY, HX, HY);
-    animate(dot_grid_home_2, eased_t2, f_g2h, GX, GY, HX, HY);
-    animate(dot_grid_home_3, eased_t3, f_g2h, GX, GY, HX, HY);
+    animate_dot(dot_grid_home, phase_1, f_g2h, GX, GY, HX, HY);
+    animate_dot(dot_grid_home_2, phase_2, f_g2h, GX, GY, HX, HY);
+    animate_dot(dot_grid_home_3, phase_3, f_g2h, GX, GY, HX, HY);
     
-    animate(dot_grid_batt, eased_t1, f_g2b, GX, GY, BX, BY);
-    animate(dot_grid_batt_2, eased_t2, f_g2b, GX, GY, BX, BY);
-    animate(dot_grid_batt_3, eased_t3, f_g2b, GX, GY, BX, BY);
+    animate_dot(dot_grid_batt, phase_1, f_g2b, GX, GY, BX, BY);
+    animate_dot(dot_grid_batt_2, phase_2, f_g2b, GX, GY, BX, BY);
+    animate_dot(dot_grid_batt_3, phase_3, f_g2b, GX, GY, BX, BY);
 
     // Battery flows (green dots)
-    animate(dot_batt_home, eased_t1, f_b2h, BX, BY, HX, HY);
-    animate(dot_batt_home_2, eased_t2, f_b2h, BX, BY, HX, HY);
-    animate(dot_batt_home_3, eased_t3, f_b2h, BX, BY, HX, HY);
+    animate_dot(dot_batt_home, phase_1, f_b2h, BX, BY, HX, HY);
+    animate_dot(dot_batt_home_2, phase_2, f_b2h, BX, BY, HX, HY);
+    animate_dot(dot_batt_home_3, phase_3, f_b2h, BX, BY, HX, HY);
     
-    animate(dot_batt_grid, eased_t1, f_b2g, BX, BY, GX, GY);
-    animate(dot_batt_grid_2, eased_t2, f_b2g, BX, BY, GX, GY);
-    animate(dot_batt_grid_3, eased_t3, f_b2g, BX, BY, GX, GY);
+    animate_dot(dot_batt_grid, phase_1, f_b2g, BX, BY, GX, GY);
+    animate_dot(dot_batt_grid_2, phase_2, f_b2g, BX, BY, GX, GY);
+    animate_dot(dot_batt_grid_3, phase_3, f_b2g, BX, BY, GX, GY);
 }
