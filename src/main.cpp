@@ -695,10 +695,6 @@ String getLocalIP() {
 
 // ============== Data RX Pulse Animation ==============
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
-
 void updateDataRxPulse() {
     if (!dot_data_rx) return;
     
