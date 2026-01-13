@@ -66,7 +66,45 @@ jobs:
       run: |
         mkdir -p public
         cp dist/*.bin public/
-        cp index.html public/ || echo "index.html will be created"
+        # Generate version for cache busting
+        VERSION=$(date +%Y%m%d.%H%M%S)
+        echo "MANIFEST_VERSION=${VERSION}" >> $GITHUB_ENV
+    
+    - name: Create manifest.json with versioning
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Create versioned manifest
+        cat > public/manifest-${MANIFEST_VERSION}.json << EOF
+        {
+          "name": "ESP32 Powerwall Display",
+          "version": "${MANIFEST_VERSION}",
+          "home_assistant_domain": "esphome",
+          "funding_url": "https://github.com/mccahan/esp32-powerwall-screen",
+          "new_install_prompt_erase": true,
+          "builds": [
+            {
+              "chipFamily": "ESP32-S3",
+              "parts": [
+                {
+                  "path": "bootloader.bin",
+                  "offset": 0
+                },
+                {
+                  "path": "partitions.bin",
+                  "offset": 32768
+                },
+                {
+                  "path": "firmware.bin",
+                  "offset": 65536
+                }
+              ]
+            }
+          ]
+        }
+        EOF
+        
+        # Create a latest manifest symlink/copy for backwards compatibility
+        cp public/manifest-${MANIFEST_VERSION}.json public/manifest.json
     
     - name: Create ESP Web Tools page
       if: github.ref == 'refs/heads/main'
@@ -183,49 +221,6 @@ jobs:
         </body>
         </html>
         EOF
-    
-    - name: Create manifest.json with versioning
-      if: github.ref == 'refs/heads/main'
-      run: |
-        # Generate version based on timestamp for cache busting
-        VERSION=$(date +%Y%m%d.%H%M%S)
-        COMMIT_SHA=${GITHUB_SHA:0:7}
-        
-        # Create versioned manifest
-        cat > public/manifest-${VERSION}.json << EOF
-        {
-          "name": "ESP32 Powerwall Display",
-          "version": "${VERSION}",
-          "home_assistant_domain": "esphome",
-          "funding_url": "https://github.com/mccahan/esp32-powerwall-screen",
-          "new_install_prompt_erase": true,
-          "builds": [
-            {
-              "chipFamily": "ESP32-S3",
-              "parts": [
-                {
-                  "path": "bootloader.bin",
-                  "offset": 0
-                },
-                {
-                  "path": "partitions.bin",
-                  "offset": 32768
-                },
-                {
-                  "path": "firmware.bin",
-                  "offset": 65536
-                }
-              ]
-            }
-          ]
-        }
-        EOF
-        
-        # Create a latest manifest symlink/copy for backwards compatibility
-        cp public/manifest-${VERSION}.json public/manifest.json
-        
-        # Save version for use in index.html
-        echo "MANIFEST_VERSION=${VERSION}" >> $GITHUB_ENV
     
     - name: Deploy to GitHub Pages
       if: github.ref == 'refs/heads/main'
