@@ -97,6 +97,13 @@ static lv_obj_t *img_grid_offline = nullptr;
 // Status/WiFi label
 static lv_obj_t *lbl_status = nullptr;
 
+// Data RX indicator dot
+static lv_obj_t *dot_data_rx = nullptr;
+
+// Timing variables for pulse animation
+static unsigned long last_data_ms = 0;
+static unsigned long last_pulse_ms = 0;
+
 // Improv WiFi state
 static improv::State improv_state = improv::STATE_AUTHORIZED;
 static uint8_t improv_buffer[256];
@@ -135,6 +142,7 @@ void sendImprovRPCResponse(improv::Command cmd, const std::vector<String> &data)
 void connectToWiFi(const char* ssid, const char* password);
 void checkWiFiConnection();
 String getLocalIP();
+void updateDataRxPulse();
 
 // Power value update functions (forward declarations)
 void updateSolarValue(float watts);
@@ -226,6 +234,7 @@ void loop() {
     lv_timer_handler();
     loopImprov();
     checkWiFiConnection();
+    updateDataRxPulse();
 
     // Check boot screen timeout
     if (boot_screen && !lv_obj_has_flag(boot_screen, LV_OBJ_FLAG_HIDDEN)) {
@@ -382,6 +391,18 @@ void createMainDashboard() {
     lv_obj_set_style_text_align(lbl_status, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(lbl_status, TFT_WIDTH);
     lv_obj_align(lbl_status, LV_ALIGN_BOTTOM_MID, 0, -10);
+
+    // ========== Data RX Indicator Dot ==========
+    dot_data_rx = lv_obj_create(main_screen);
+    lv_obj_set_size(dot_data_rx, 10, 10);
+    lv_obj_set_pos(dot_data_rx, 460, 10);
+    lv_obj_set_style_radius(dot_data_rx, 5, 0);
+    lv_obj_set_style_bg_color(dot_data_rx, lv_color_hex(0xFF0000), 0);
+    lv_obj_set_style_bg_opa(dot_data_rx, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(dot_data_rx, 0, 0);
+    lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_FLOATING);
+    lv_obj_clear_flag(dot_data_rx, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 void createBootScreen() {
@@ -671,6 +692,42 @@ String getLocalIP() {
     return "";
 }
 
+// ============== Data RX Pulse Animation ==============
+
+void updateDataRxPulse() {
+    if (!dot_data_rx) return;
+    
+    const unsigned long now = millis();
+    const unsigned long since_data = now - last_data_ms;
+    const unsigned long since_pulse = now - last_pulse_ms;
+    
+    // Start a new pulse only if:
+    //  - data arrived recently (within 200ms)
+    //  - AND at least 1 second has passed since the last pulse started
+    if (since_data <= 200 && since_pulse >= 1000) {
+        last_pulse_ms = now;
+        lv_obj_clear_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
+    }
+    
+    const unsigned long pulse_age = now - last_pulse_ms;
+    
+    // Pulse lasts 900ms
+    if (pulse_age <= 900) {
+        lv_obj_clear_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
+        
+        float t = (float)pulse_age / 900.0f;  // 0..1
+        float s = sin(3.14159265f * t);
+        float a = s * s;  // smooth single pulse
+        
+        // Add visibility floor so dot doesn't completely disappear
+        a = 0.15f + 0.85f * a;
+        
+        lv_obj_set_style_bg_opa(dot_data_rx, (lv_opa_t)roundf(a * 100.0f), 0);
+    } else {
+        lv_obj_add_flag(dot_data_rx, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 // ============== Power Value Update Functions ==============
 // These will be called when MQTT data arrives
 
@@ -681,6 +738,7 @@ void updateSolarValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_solar_val, buf);
     }
+    last_data_ms = millis();
 }
 
 void updateGridValue(float watts) {
@@ -690,6 +748,7 @@ void updateGridValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_grid_val, buf);
     }
+    last_data_ms = millis();
 }
 
 void updateHomeValue(float watts) {
@@ -699,6 +758,7 @@ void updateHomeValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_home_val, buf);
     }
+    last_data_ms = millis();
 }
 
 void updateBatteryValue(float watts) {
@@ -708,6 +768,7 @@ void updateBatteryValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_batt_val, buf);
     }
+    last_data_ms = millis();
 }
 
 void updateSOC(float soc_percent) {
@@ -725,4 +786,6 @@ void updateSOC(float soc_percent) {
     if (bar_soc) {
         lv_bar_set_value(bar_soc, (int)roundf(adjusted), LV_ANIM_OFF);
     }
+    
+    last_data_ms = millis();
 }
