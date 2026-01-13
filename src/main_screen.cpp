@@ -464,9 +464,9 @@ void updatePowerFlowAnimation() {
     };
     
     // Inline helper for setting dot opacity
-    auto set_dot_opa = [](lv_obj_t* dot, float alpha) {
+    auto set_dot_opa = [OPACITY_SCALE, OPACITY_FLOOR](lv_obj_t* dot, float alpha) {
         alpha = clampf(alpha, 0.0f, 1.0f);
-        float opa_float = (alpha * 200.0f) + 10.0f;
+        float opa_float = (alpha * OPACITY_SCALE) + OPACITY_FLOOR;
         if (opa_float > (float)LV_OPA_MAX) opa_float = (float)LV_OPA_MAX;
         lv_obj_set_style_bg_opa(dot, (lv_opa_t)lroundf(opa_float), 0);
     };
