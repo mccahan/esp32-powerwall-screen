@@ -79,11 +79,28 @@ pio run
 # Clean build
 pio run -t clean
 
-# Build and upload
+# Build and upload via PlatformIO
 pio run -t upload
 
 # Monitor serial output
 pio device monitor
+```
+
+### Manual Flashing with esptool
+
+If PlatformIO upload fails, use esptool directly:
+
+```bash
+esptool.py --baud 460800 write_flash \
+  0x0 .pio/build/esp32-s3-devkitc-1/bootloader.bin \
+  0x8000 .pio/build/esp32-s3-devkitc-1/partitions.bin \
+  0x10000 .pio/build/esp32-s3-devkitc-1/firmware.bin
+```
+
+To fully erase the device first (recommended for clean install):
+
+```bash
+esptool.py erase_flash
 ```
 
 ### GitHub Actions
