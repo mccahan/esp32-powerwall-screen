@@ -37,6 +37,26 @@ Arduino_ST7701_RGBPanel *gfx = new Arduino_ST7701_RGBPanel(
 #define TFT_WIDTH 480
 #define TFT_HEIGHT 480
 
+// UI Layout Positions (from powerwall-monitor.yml design)
+#define LABEL_HEIGHT 28
+#define LABEL_HEIGHT_LARGE 39
+
+#define BATTERY_VAL_Y 345
+#define SOLAR_VAL_Y 111
+#define GRID_VAL_X 62
+#define GRID_VAL_Y 240
+#define GRID_VAL_WIDTH 100
+#define HOME_VAL_X 318
+#define HOME_VAL_Y 240
+#define HOME_VAL_WIDTH 100
+#define SOC_LABEL_Y 413
+#define SOC_BAR_X 82
+#define SOC_BAR_Y 454
+#define SOC_BAR_WIDTH 316
+#define SOC_BAR_HEIGHT 13
+#define GRID_OFFLINE_X 77
+#define GRID_OFFLINE_Y 159
+
 // Theme colors (matching ESPHome config)
 #define COLOR_BG        0x0A0C10
 #define COLOR_WHITE     0xFFFFFF
@@ -249,61 +269,61 @@ void createMainDashboard() {
     lv_scr_load(main_screen);
 
     // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
-    // Battery value - centered at x=240, y=345 (from YAML line 666-674)
+    // Battery value - centered at bottom
     lbl_batt_val = lv_label_create(main_screen);
     lv_label_set_text(lbl_batt_val, "0.0 kW");
     lv_obj_set_style_text_color(lbl_batt_val, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_set_style_text_font(lbl_batt_val, &space_bold_21, 0);
     lv_obj_set_style_text_align(lbl_batt_val, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_batt_val, 0, 345);
-    lv_obj_set_width(lbl_batt_val, 480);
-    lv_obj_set_height(lbl_batt_val, 28);
+    lv_obj_set_pos(lbl_batt_val, 0, BATTERY_VAL_Y);
+    lv_obj_set_width(lbl_batt_val, TFT_WIDTH);
+    lv_obj_set_height(lbl_batt_val, LABEL_HEIGHT);
 
-    // Solar value - centered at x=240, y=111 (from YAML line 677-687)
+    // Solar value - centered at top
     lbl_solar_val = lv_label_create(main_screen);
     lv_label_set_text(lbl_solar_val, "0.0 kW");
     lv_obj_set_style_text_color(lbl_solar_val, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_set_style_text_font(lbl_solar_val, &space_bold_21, 0);
     lv_obj_set_style_text_align(lbl_solar_val, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_solar_val, 0, 111);
-    lv_obj_set_width(lbl_solar_val, 480);
-    lv_obj_set_height(lbl_solar_val, 28);
+    lv_obj_set_pos(lbl_solar_val, 0, SOLAR_VAL_Y);
+    lv_obj_set_width(lbl_solar_val, TFT_WIDTH);
+    lv_obj_set_height(lbl_solar_val, LABEL_HEIGHT);
 
-    // Grid value - x=62, y=240 (from YAML line 689-699)
+    // Grid value - left side
     lbl_grid_val = lv_label_create(main_screen);
     lv_label_set_text(lbl_grid_val, "0.0 kW");
     lv_obj_set_style_text_color(lbl_grid_val, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_set_style_text_font(lbl_grid_val, &space_bold_21, 0);
     lv_obj_set_style_text_align(lbl_grid_val, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_grid_val, 62, 240);
-    lv_obj_set_width(lbl_grid_val, 100);
-    lv_obj_set_height(lbl_grid_val, 28);
+    lv_obj_set_pos(lbl_grid_val, GRID_VAL_X, GRID_VAL_Y);
+    lv_obj_set_width(lbl_grid_val, GRID_VAL_WIDTH);
+    lv_obj_set_height(lbl_grid_val, LABEL_HEIGHT);
 
-    // Home value - x=318, y=240 (from YAML line 701-711)
+    // Home value - right side
     lbl_home_val = lv_label_create(main_screen);
     lv_label_set_text(lbl_home_val, "0.0 kW");
     lv_obj_set_style_text_color(lbl_home_val, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_set_style_text_font(lbl_home_val, &space_bold_21, 0);
     lv_obj_set_style_text_align(lbl_home_val, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_home_val, 318, 240);
-    lv_obj_set_width(lbl_home_val, 100);
-    lv_obj_set_height(lbl_home_val, 28);
+    lv_obj_set_pos(lbl_home_val, HOME_VAL_X, HOME_VAL_Y);
+    lv_obj_set_width(lbl_home_val, HOME_VAL_WIDTH);
+    lv_obj_set_height(lbl_home_val, LABEL_HEIGHT);
 
     // ========== SOC Label (using custom font space_bold_30) ==========
-    // SOC percentage - centered, y=413 (from YAML line 713-724)
+    // SOC percentage - centered above battery bar
     lbl_soc = lv_label_create(main_screen);
     lv_label_set_text(lbl_soc, "0%");
     lv_obj_set_style_text_color(lbl_soc, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_set_style_text_font(lbl_soc, &space_bold_30, 0);
     lv_obj_set_style_text_align(lbl_soc, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_pos(lbl_soc, 0, 413);
-    lv_obj_set_width(lbl_soc, 480);
-    lv_obj_set_height(lbl_soc, 39);
+    lv_obj_set_pos(lbl_soc, 0, SOC_LABEL_Y);
+    lv_obj_set_width(lbl_soc, TFT_WIDTH);
+    lv_obj_set_height(lbl_soc, LABEL_HEIGHT_LARGE);
 
-    // ========== SOC Bar (from YAML line 755-771) ==========
+    // ========== SOC Bar ==========
     bar_soc = lv_bar_create(main_screen);
-    lv_obj_set_size(bar_soc, 316, 13);
-    lv_obj_set_pos(bar_soc, 82, 454);
+    lv_obj_set_size(bar_soc, SOC_BAR_WIDTH, SOC_BAR_HEIGHT);
+    lv_obj_set_pos(bar_soc, SOC_BAR_X, SOC_BAR_Y);
     lv_bar_set_range(bar_soc, 0, 100);
     lv_bar_set_value(bar_soc, 0, LV_ANIM_OFF);
 
@@ -319,17 +339,17 @@ void createMainDashboard() {
     lv_obj_set_style_bg_opa(bar_soc, LV_OPA_COVER, LV_PART_INDICATOR);
     lv_obj_set_style_radius(bar_soc, 2, LV_PART_INDICATOR);
 
-    // ========== Layout Background Image (from YAML line 987-994) ==========
+    // ========== Layout Background Image ==========
     img_layout = lv_img_create(main_screen);
     lv_img_set_src(img_layout, &layout_img);
     lv_obj_set_pos(img_layout, 0, 0);
-    lv_obj_set_size(img_layout, 480, 480);
+    lv_obj_set_size(img_layout, TFT_WIDTH, TFT_HEIGHT);
     lv_obj_clear_flag(img_layout, LV_OBJ_FLAG_SCROLLABLE);
 
-    // ========== Grid Offline Overlay (from YAML line 1022-1027) ==========
+    // ========== Grid Offline Overlay ==========
     img_grid_offline = lv_img_create(main_screen);
     lv_img_set_src(img_grid_offline, &grid_offline_img);
-    lv_obj_set_pos(img_grid_offline, 77, 159);
+    lv_obj_set_pos(img_grid_offline, GRID_OFFLINE_X, GRID_OFFLINE_Y);
     lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     // ========== Status/WiFi Label ==========
@@ -338,7 +358,7 @@ void createMainDashboard() {
     lv_obj_set_style_text_color(lbl_status, lv_color_hex(0x6A6A6A), 0);
     lv_obj_set_style_text_font(lbl_status, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_align(lbl_status, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(lbl_status, 480);
+    lv_obj_set_width(lbl_status, TFT_WIDTH);
     lv_obj_align(lbl_status, LV_ALIGN_BOTTOM_MID, 0, -10);
 }
 
