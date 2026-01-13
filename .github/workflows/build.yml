@@ -66,17 +66,59 @@ jobs:
       run: |
         mkdir -p public
         cp dist/*.bin public/
-        cp index.html public/ || echo "index.html will be created"
+        # Generate version for cache busting
+        VERSION=$(date +%Y%m%d.%H%M%S)
+        echo "MANIFEST_VERSION=${VERSION}" >> $GITHUB_ENV
+    
+    - name: Create manifest.json with versioning
+      if: github.ref == 'refs/heads/main'
+      run: |
+        # Create versioned manifest (using unquoted EOF to allow variable expansion)
+        cat > public/manifest-${MANIFEST_VERSION}.json << EOF
+        {
+          "name": "ESP32 Powerwall Display",
+          "version": "${MANIFEST_VERSION}",
+          "home_assistant_domain": "esphome",
+          "funding_url": "https://github.com/mccahan/esp32-powerwall-screen",
+          "new_install_prompt_erase": true,
+          "builds": [
+            {
+              "chipFamily": "ESP32-S3",
+              "parts": [
+                {
+                  "path": "bootloader.bin",
+                  "offset": 0
+                },
+                {
+                  "path": "partitions.bin",
+                  "offset": 32768
+                },
+                {
+                  "path": "firmware.bin",
+                  "offset": 65536
+                }
+              ]
+            }
+          ]
+        }
+        EOF
+        
+        # Create a latest manifest symlink/copy for backwards compatibility
+        cp public/manifest-${MANIFEST_VERSION}.json public/manifest.json
     
     - name: Create ESP Web Tools page
       if: github.ref == 'refs/heads/main'
       run: |
-        cat > public/index.html << 'EOF'
+        # Create index.html (using unquoted EOF to allow variable expansion)
+        cat > public/index.html << EOF
         <!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+            <meta http-equiv="Pragma" content="no-cache">
+            <meta http-equiv="Expires" content="0">
             <title>ESP32 Powerwall Display - Web Installer</title>
             <script type="module" src="https://unpkg.com/esp-web-tools@10.0.1/dist/web/install-button.js?module"></script>
             <style>
@@ -101,6 +143,11 @@ jobs:
                 .subtitle {
                     color: #666;
                     margin-bottom: 30px;
+                }
+                .version {
+                    color: #999;
+                    font-size: 0.85em;
+                    margin-top: 5px;
                 }
                 esp-web-install-button {
                     margin: 20px 0;
@@ -133,8 +180,9 @@ jobs:
             <div class="container">
                 <h1>🔋 ESP32 Powerwall Display</h1>
                 <p class="subtitle">Web-based firmware installer for your ESP32-S3 device</p>
+                <p class="version">Version: ${MANIFEST_VERSION}</p>
                 
-                <esp-web-install-button manifest="manifest.json">
+                <esp-web-install-button manifest="manifest.json?v=${MANIFEST_VERSION}">
                     <button slot="activate">Install Firmware</button>
                     <span slot="unsupported">
                         Your browser doesn't support Web Serial. Try Chrome or Edge.
@@ -173,37 +221,6 @@ jobs:
             </div>
         </body>
         </html>
-        EOF
-    
-    - name: Create manifest.json
-      if: github.ref == 'refs/heads/main'
-      run: |
-        cat > public/manifest.json << 'EOF'
-        {
-          "name": "ESP32 Powerwall Display",
-          "version": "1.0.0",
-          "home_assistant_domain": "esphome",
-          "new_install_prompt_erase": true,
-          "builds": [
-            {
-              "chipFamily": "ESP32-S3",
-              "parts": [
-                {
-                  "path": "bootloader.bin",
-                  "offset": 0
-                },
-                {
-                  "path": "partitions.bin",
-                  "offset": 32768
-                },
-                {
-                  "path": "firmware.bin",
-                  "offset": 65536
-                }
-              ]
-            }
-          ]
-        }
         EOF
     
     - name: Deploy to GitHub Pages
