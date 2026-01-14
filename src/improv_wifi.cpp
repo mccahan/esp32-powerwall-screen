@@ -245,6 +245,31 @@ void retryWiFiConnection() {
     }
 }
 
+// Helper function to handle successful WiFi connection
+static void onWiFiConnected() {
+    String ip = getLocalIP();
+    Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
+    
+    // Hide boot/error screens
+    hideBootScreen();
+    hideWifiErrorScreen();
+    
+    // Start web server if not already running
+    webServer.begin();
+    
+    // Check if MQTT is configured
+    MQTTConfig& mqtt_config = mqttClient.getConfig();
+    if (mqtt_config.host.length() > 0) {
+        // MQTT configured - connect to broker
+        hideMqttConfigScreen();
+        mqttClient.connect();
+    } else {
+        // MQTT not configured - show QR code to config page
+        showMqttConfigScreen(ip.c_str());
+        Serial.println("MQTT not configured - showing config screen");
+    }
+}
+
 void checkWiFiConnection() {
     wl_status_t wifi_status = WiFi.status();
     
@@ -256,28 +281,7 @@ void checkWiFiConnection() {
         wifi_disconnected_time = 0;  // Reset disconnection timer
         
         Serial.println("WiFi reconnected!");
-        
-        String ip = getLocalIP();
-        Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
-        
-        // Hide boot/error screens
-        hideBootScreen();
-        hideWifiErrorScreen();
-        
-        // Start web server if not already running
-        webServer.begin();
-        
-        // Check if MQTT is configured
-        MQTTConfig& mqtt_config = mqttClient.getConfig();
-        if (mqtt_config.host.length() > 0) {
-            // MQTT configured - connect to broker
-            hideMqttConfigScreen();
-            mqttClient.connect();
-        } else {
-            // MQTT not configured - show QR code to config page
-            showMqttConfigScreen(ip.c_str());
-            Serial.println("MQTT not configured - showing config screen");
-        }
+        onWiFiConnected();
     }
     
     // Handle WiFi disconnection when it was previously connected
@@ -299,8 +303,20 @@ void checkWiFiConnection() {
     }
     
     // Check if WiFi has been disconnected for too long - reboot device
+    // Handle millis() overflow safely
     if (wifi_disconnected_time > 0 && wifi_status != WL_CONNECTED) {
-        if (millis() - wifi_disconnected_time >= WIFI_DISCONNECTION_REBOOT_TIMEOUT) {
+        unsigned long now = millis();
+        unsigned long elapsed;
+        
+        // Safe calculation handling millis() overflow
+        if (now >= wifi_disconnected_time) {
+            elapsed = now - wifi_disconnected_time;
+        } else {
+            // Overflow occurred: calculate time considering the wrap
+            elapsed = (ULONG_MAX - wifi_disconnected_time) + now + 1;
+        }
+        
+        if (elapsed >= WIFI_DISCONNECTION_REBOOT_TIMEOUT) {
             Serial.println("WiFi disconnected for 5 minutes. Rebooting...");
             delay(1000);
             ESP.restart();
@@ -326,33 +342,13 @@ void checkWiFiConnection() {
             improv_state = improv::STATE_PROVISIONED;
             sendImprovState();
 
-            String ip = getLocalIP();
-            std::vector<String> urls = {"http://" + ip};
+            std::vector<String> urls = {"http://" + getLocalIP()};
             sendImprovRPCResponse(improv::WIFI_SETTINGS, urls);
 
             // Stop captive portal if it was running
             stopCaptivePortal();
 
-            // Start the main web server now that WiFi is connected
-            webServer.begin();
-
-            // Hide boot/error screens
-            hideBootScreen();
-            hideWifiErrorScreen();
-
-            Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
-
-            // Check if MQTT is configured
-            MQTTConfig& mqtt_config = mqttClient.getConfig();
-            if (mqtt_config.host.length() > 0) {
-                // MQTT configured - connect to broker
-                hideMqttConfigScreen();
-                mqttClient.connect();
-            } else {
-                // MQTT not configured - show QR code to config page
-                showMqttConfigScreen(ip.c_str());
-                Serial.println("MQTT not configured - showing config screen");
-            }
+            onWiFiConnected();
         }
         else if (millis() - wifi_connect_start > WIFI_CONNECT_TIMEOUT) {
             wifi_connecting = false;
