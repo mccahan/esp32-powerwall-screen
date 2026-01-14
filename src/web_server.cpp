@@ -120,11 +120,118 @@ void PowerwallWebServer::setupRoutes() {
         serializeJson(doc, response);
         request->send(200, "application/json", response);
     });
+
+    // API endpoint to save brightness configuration
+    server.on("/api/brightness", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (total > MAX_JSON_PAYLOAD_SIZE) {
+                request->send(413, "application/json", "{\"error\":\"Payload too large\"}");
+                return;
+            }
+
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, data, len);
+
+            if (error) {
+                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+                return;
+            }
+
+            BrightnessConfig& config = brightnessConfig.getConfig();
+            if (doc.containsKey("dayBrightness")) config.dayBrightness = doc["dayBrightness"].as<uint8_t>();
+            if (doc.containsKey("nightBrightness")) config.nightBrightness = doc["nightBrightness"].as<uint8_t>();
+            if (doc.containsKey("dayStartHour")) config.dayStartHour = doc["dayStartHour"].as<uint8_t>();
+            if (doc.containsKey("dayEndHour")) config.dayEndHour = doc["dayEndHour"].as<uint8_t>();
+            if (doc.containsKey("dayIdleDimmingEnabled")) config.dayIdleDimmingEnabled = doc["dayIdleDimmingEnabled"].as<bool>();
+            if (doc.containsKey("nightIdleDimmingEnabled")) config.nightIdleDimmingEnabled = doc["nightIdleDimmingEnabled"].as<bool>();
+            if (doc.containsKey("idleTimeout")) {
+                int timeout = doc["idleTimeout"].as<int>();
+                config.idleTimeout = BrightnessConfigManager::secondsToTimeout(timeout);
+            }
+            if (doc.containsKey("idleBrightness")) config.idleBrightness = doc["idleBrightness"].as<uint8_t>();
+
+            brightnessConfig.saveConfig();
+
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        }
+    );
+
+    // API endpoint to get current brightness configuration
+    server.on("/api/brightness", HTTP_GET, [](AsyncWebServerRequest *request) {
+        BrightnessConfig& config = brightnessConfig.getConfig();
+
+        StaticJsonDocument<512> doc;
+        doc["dayBrightness"] = config.dayBrightness;
+        doc["nightBrightness"] = config.nightBrightness;
+        doc["dayStartHour"] = config.dayStartHour;
+        doc["dayEndHour"] = config.dayEndHour;
+        doc["dayIdleDimmingEnabled"] = config.dayIdleDimmingEnabled;
+        doc["nightIdleDimmingEnabled"] = config.nightIdleDimmingEnabled;
+        doc["idleTimeout"] = BrightnessConfigManager::timeoutToSeconds(config.idleTimeout);
+        doc["idleBrightness"] = config.idleBrightness;
+
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    // API endpoint to save time configuration
+    server.on("/api/time", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (total > MAX_JSON_PAYLOAD_SIZE) {
+                request->send(413, "application/json", "{\"error\":\"Payload too large\"}");
+                return;
+            }
+
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, data, len);
+
+            if (error) {
+                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+                return;
+            }
+
+            TimeConfig& config = timeConfig.getConfig();
+            if (doc.containsKey("ntpServer")) config.ntpServer = doc["ntpServer"].as<String>();
+            if (doc.containsKey("timezone")) config.timezone = doc["timezone"].as<String>();
+            if (doc.containsKey("ntpEnabled")) config.ntpEnabled = doc["ntpEnabled"].as<bool>();
+
+            timeConfig.saveConfig();
+
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        }
+    );
+
+    // API endpoint to get current time configuration
+    server.on("/api/time", HTTP_GET, [](AsyncWebServerRequest *request) {
+        TimeConfig& config = timeConfig.getConfig();
+
+        StaticJsonDocument<512> doc;
+        doc["ntpServer"] = config.ntpServer;
+        doc["timezone"] = config.timezone;
+        doc["ntpEnabled"] = config.ntpEnabled;
+        doc["timeSynced"] = timeConfig.isTimeSynced();
+        
+        // Get current time if available
+        struct tm timeinfo;
+        if (timeConfig.getLocalTime(&timeinfo)) {
+            char timeStr[32];
+            strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+            doc["currentTime"] = timeStr;
+        }
+
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
 }
 
 String PowerwallWebServer::getConfigPage() {
-    MQTTConfig& config = mqttClient.getConfig();
+    MQTTConfig& mqttConf = mqttClient.getConfig();
     DisplayConfig& dispConfig = displayConfig.getConfig();
+    BrightnessConfig& brightConf = brightnessConfig.getConfig();
+    TimeConfig& timeConf = timeConfig.getConfig();
+    
     int currentRotation = DisplayConfigManager::rotationToDegrees(dispConfig.rotation);
 
     String html = R"rawliteral(
@@ -167,15 +274,25 @@ String PowerwallWebServer::getConfigPage() {
         input[type="text"],
         input[type="number"],
         input[type="password"],
+        input[type="checkbox"],
         select {
-            width: 100%;
             padding: 10px;
             border: 1px solid #444;
             border-radius: 4px;
             background: #1a1a1a;
             color: #e0e0e0;
-            box-sizing: border-box;
             font-size: 16px;
+        }
+        input[type="text"],
+        input[type="number"],
+        input[type="password"],
+        select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
         }
         input[type="text"]:focus,
         input[type="number"]:focus,
@@ -232,6 +349,44 @@ String PowerwallWebServer::getConfigPage() {
         .section-title:first-of-type {
             margin-top: 0;
         }
+        .range-input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .range-input-group input[type="range"] {
+            flex: 1;
+        }
+        .range-value {
+            min-width: 50px;
+            text-align: center;
+            color: #4FC3F7;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #1a1a1a;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4FC3F7;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4FC3F7;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -251,19 +406,95 @@ String PowerwallWebServer::getConfigPage() {
         </form>
         <div class="status" id="displayStatus"></div>
 
+        <h2 class="section-title">Brightness Settings</h2>
+        <form id="brightnessForm">
+            <div class="form-group">
+                <label for="dayBrightness">Day Brightness: <span id="dayBrightnessValue" class="range-value">)rawliteral" + String(brightConf.dayBrightness) + R"rawliteral(%</span></label>
+                <input type="range" id="dayBrightness" name="dayBrightness" min="10" max="100" value=")rawliteral" + String(brightConf.dayBrightness) + R"rawliteral(" oninput="document.getElementById('dayBrightnessValue').textContent = this.value + '%'">
+            </div>
+            <div class="form-group">
+                <label for="nightBrightness">Night Brightness: <span id="nightBrightnessValue" class="range-value">)rawliteral" + String(brightConf.nightBrightness) + R"rawliteral(%</span></label>
+                <input type="range" id="nightBrightness" name="nightBrightness" min="10" max="100" value=")rawliteral" + String(brightConf.nightBrightness) + R"rawliteral(" oninput="document.getElementById('nightBrightnessValue').textContent = this.value + '%'">
+            </div>
+            <div class="form-group">
+                <label for="dayStartHour">Day Start Hour (0-23):</label>
+                <input type="number" id="dayStartHour" name="dayStartHour" min="0" max="23" value=")rawliteral" + String(brightConf.dayStartHour) + R"rawliteral(" required>
+            </div>
+            <div class="form-group">
+                <label for="dayEndHour">Day End Hour (0-23):</label>
+                <input type="number" id="dayEndHour" name="dayEndHour" min="0" max="23" value=")rawliteral" + String(brightConf.dayEndHour) + R"rawliteral(" required>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="dayIdleDimmingEnabled" name="dayIdleDimmingEnabled" )rawliteral" + String(brightConf.dayIdleDimmingEnabled ? "checked" : "") + R"rawliteral(>
+                    Enable Idle Dimming (Day)
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="nightIdleDimmingEnabled" name="nightIdleDimmingEnabled" )rawliteral" + String(brightConf.nightIdleDimmingEnabled ? "checked" : "") + R"rawliteral(>
+                    Enable Idle Dimming (Night)
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="idleTimeout">Idle Timeout:</label>
+                <select id="idleTimeout" name="idleTimeout">
+                    <option value="0">Never</option>
+                    <option value="5">5 seconds</option>
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="60">60 seconds</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="idleBrightness">Idle Brightness: <span id="idleBrightnessValue" class="range-value">)rawliteral" + String(brightConf.idleBrightness) + R"rawliteral(%</span></label>
+                <input type="range" id="idleBrightness" name="idleBrightness" min="10" max="100" value=")rawliteral" + String(brightConf.idleBrightness) + R"rawliteral(" oninput="document.getElementById('idleBrightnessValue').textContent = this.value + '%'">
+            </div>
+            <button type="submit" class="button">Save Brightness Settings</button>
+        </form>
+        <div class="status" id="brightnessStatus"></div>
+
+        <h2 class="section-title">Time Settings</h2>
+        <form id="timeForm">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="ntpEnabled" name="ntpEnabled" )rawliteral" + String(timeConf.ntpEnabled ? "checked" : "") + R"rawliteral(>
+                    Enable NTP Time Sync
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="ntpServer">NTP Server:</label>
+                <input type="text" id="ntpServer" name="ntpServer" value=")rawliteral" + timeConf.ntpServer + R"rawliteral(" placeholder="pool.ntp.org">
+            </div>
+            <div class="form-group">
+                <label for="timezone">Timezone (POSIX format):</label>
+                <input type="text" id="timezone" name="timezone" value=")rawliteral" + timeConf.timezone + R"rawliteral(" placeholder="PST8PDT,M3.2.0,M11.1.0">
+            </div>
+            <button type="submit" class="button">Save Time Settings</button>
+        </form>
+        <div class="status" id="timeStatus"></div>
+        <div class="info">
+            <strong>Common Timezones:</strong><br>
+            • EST5EDT,M3.2.0,M11.1.0 (US Eastern)<br>
+            • CST6CDT,M3.2.0,M11.1.0 (US Central)<br>
+            • MST7MDT,M3.2.0,M11.1.0 (US Mountain)<br>
+            • PST8PDT,M3.2.0,M11.1.0 (US Pacific)<br>
+            • UTC0 (UTC, no DST)
+        </div>
+
         <h2 class="section-title">MQTT Settings</h2>
         <form id="mqttForm">
             <div class="form-group">
                 <label for="host">MQTT Host:</label>
-                <input type="text" id="host" name="host" value=")rawliteral" + config.host + R"rawliteral(" required>
+                <input type="text" id="host" name="host" value=")rawliteral" + mqttConf.host + R"rawliteral(" required>
             </div>
             <div class="form-group">
                 <label for="port">MQTT Port:</label>
-                <input type="number" id="port" name="port" value=")rawliteral" + String(config.port) + R"rawliteral(" required>
+                <input type="number" id="port" name="port" value=")rawliteral" + String(mqttConf.port) + R"rawliteral(" required>
             </div>
             <div class="form-group">
                 <label for="user">MQTT Username:</label>
-                <input type="text" id="user" name="user" value=")rawliteral" + config.user + R"rawliteral(">
+                <input type="text" id="user" name="user" value=")rawliteral" + mqttConf.user + R"rawliteral(">
             </div>
             <div class="form-group">
                 <label for="password">MQTT Password:</label>
@@ -271,9 +502,9 @@ String PowerwallWebServer::getConfigPage() {
             </div>
             <div class="form-group">
                 <label for="prefix">Topic Prefix:</label>
-                <input type="text" id="prefix" name="prefix" value=")rawliteral" + config.topic_prefix + R"rawliteral(" placeholder="pypowerwall/" required>
+                <input type="text" id="prefix" name="prefix" value=")rawliteral" + mqttConf.topic_prefix + R"rawliteral(" placeholder="pypowerwall/" required>
             </div>
-            <button type="submit" class="button">Save Configuration</button>
+            <button type="submit" class="button">Save MQTT Settings</button>
         </form>
         <div class="status" id="mqttStatus"></div>
         <div class="info">
@@ -282,8 +513,9 @@ String PowerwallWebServer::getConfigPage() {
         </div>
     </div>
     <script>
-        // Set current rotation value
+        // Set current values
         document.getElementById('rotation').value = ')rawliteral" + String(currentRotation) + R"rawliteral(';
+        document.getElementById('idleTimeout').value = ')rawliteral" + String(BrightnessConfigManager::timeoutToSeconds(brightConf.idleTimeout)) + R"rawliteral(';
 
         // Display settings form handler
         document.getElementById('displayForm').addEventListener('submit', async (e) => {
@@ -316,6 +548,81 @@ String PowerwallWebServer::getConfigPage() {
             }
         });
 
+        // Brightness settings form handler
+        document.getElementById('brightnessForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                dayBrightness: parseInt(formData.get('dayBrightness')),
+                nightBrightness: parseInt(formData.get('nightBrightness')),
+                dayStartHour: parseInt(formData.get('dayStartHour')),
+                dayEndHour: parseInt(formData.get('dayEndHour')),
+                dayIdleDimmingEnabled: document.getElementById('dayIdleDimmingEnabled').checked,
+                nightIdleDimmingEnabled: document.getElementById('nightIdleDimmingEnabled').checked,
+                idleTimeout: parseInt(formData.get('idleTimeout')),
+                idleBrightness: parseInt(formData.get('idleBrightness'))
+            };
+
+            const status = document.getElementById('brightnessStatus');
+
+            try {
+                const response = await fetch('/api/brightness', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.textContent = 'Brightness settings saved successfully!';
+                    status.style.display = 'block';
+                } else {
+                    status.className = 'status error';
+                    status.textContent = 'Failed to save brightness settings';
+                    status.style.display = 'block';
+                }
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+                status.style.display = 'block';
+            }
+        });
+
+        // Time settings form handler
+        document.getElementById('timeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                ntpEnabled: document.getElementById('ntpEnabled').checked,
+                ntpServer: formData.get('ntpServer'),
+                timezone: formData.get('timezone')
+            };
+
+            const status = document.getElementById('timeStatus');
+
+            try {
+                const response = await fetch('/api/time', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.textContent = 'Time settings saved! Syncing with NTP server...';
+                    status.style.display = 'block';
+                } else {
+                    status.className = 'status error';
+                    status.textContent = 'Failed to save time settings';
+                    status.style.display = 'block';
+                }
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+                status.style.display = 'block';
+            }
+        });
+
         // MQTT settings form handler
         document.getElementById('mqttForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -333,11 +640,11 @@ String PowerwallWebServer::getConfigPage() {
 
                 if (response.ok) {
                     status.className = 'status success';
-                    status.textContent = 'Configuration saved successfully! Reconnecting to MQTT...';
+                    status.textContent = 'MQTT settings saved successfully! Reconnecting to MQTT...';
                     status.style.display = 'block';
                 } else {
                     status.className = 'status error';
-                    status.textContent = 'Failed to save configuration';
+                    status.textContent = 'Failed to save MQTT settings';
                     status.style.display = 'block';
                 }
             } catch (error) {

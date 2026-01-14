@@ -5,6 +5,8 @@
 #include <ESPAsyncWebServer.h>
 #include "mqtt_client.h"
 #include "display_config.h"
+#include "brightness_config.h"
+#include "time_config.h"
 
 // Constants
 #define MAX_JSON_PAYLOAD_SIZE 1024
