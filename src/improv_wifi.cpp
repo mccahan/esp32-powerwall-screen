@@ -7,7 +7,10 @@
 #include "captive_portal.h"
 #include "web_server.h"
 #include <WiFi.h>
+#include <ESPmDNS.h>
 #include <lvgl.h>
+
+#define MDNS_HOSTNAME "powerwall-display"
 
 // Device info
 #define DEVICE_NAME "Powerwall Display"
@@ -249,11 +252,19 @@ void retryWiFiConnection() {
 static void onWiFiConnected() {
     String ip = getLocalIP();
     Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
-    
+
+    // Start mDNS responder
+    if (MDNS.begin(MDNS_HOSTNAME)) {
+        MDNS.addService("http", "tcp", 80);
+        Serial.printf("mDNS started: http://%s.local\n", MDNS_HOSTNAME);
+    } else {
+        Serial.println("mDNS failed to start");
+    }
+
     // Hide boot/error screens
     hideBootScreen();
     hideWifiErrorScreen();
-    
+
     // Start web server if not already running
     webServer.begin();
     
