@@ -10,6 +10,7 @@
 #include "boot_screen.h"
 #include "main_screen.h"
 #include "info_screen.h"
+#include "config_screen.h"
 #include "wifi_error_screen.h"
 #include "mqtt_config_screen.h"
 #include "improv_wifi.h"
@@ -312,6 +313,7 @@ void setupTouch() {
 void createUI() {
     createMainDashboard();
     createInfoScreen();
+    createConfigScreen();
     createMqttConfigScreen(getMainScreen());
     createWifiErrorScreen(getMainScreen());
     createBootScreen(getMainScreen());

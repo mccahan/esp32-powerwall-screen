@@ -1,5 +1,6 @@
 #include "info_screen.h"
 #include "main_screen.h"
+#include "config_screen.h"
 #include "mqtt_client.h"
 #include <WiFi.h>
 
@@ -23,8 +24,9 @@ static lv_obj_t *lbl_mqtt_host = nullptr;
 static lv_obj_t *lbl_mqtt_status = nullptr;
 static lv_obj_t *lbl_last_update = nullptr;
 
-// Forward declaration for back button callback
+// Forward declarations for button callbacks
 static void back_btn_event_cb(lv_event_t *e);
+static void config_btn_event_cb(lv_event_t *e);
 
 void createInfoScreen() {
     // Create info screen (separate from main screen)
@@ -51,6 +53,19 @@ void createInfoScreen() {
     lv_label_set_text(btn_label, "< Back");
     lv_obj_set_style_text_color(btn_label, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_center(btn_label);
+
+    // Config button
+    lv_obj_t *btn_config = lv_btn_create(info_screen);
+    lv_obj_set_size(btn_config, 80, 40);
+    lv_obj_align(btn_config, LV_ALIGN_TOP_RIGHT, -20, 20);
+    lv_obj_set_style_bg_color(btn_config, lv_color_hex(0x2A2D32), 0);
+    lv_obj_set_style_radius(btn_config, 8, 0);
+    lv_obj_add_event_cb(btn_config, config_btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *config_label = lv_label_create(btn_config);
+    lv_label_set_text(config_label, "Config >");
+    lv_obj_set_style_text_color(config_label, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_center(config_label);
 
     // Info container
     int y_offset = 100;
@@ -148,6 +163,10 @@ void createInfoScreen() {
 
 static void back_btn_event_cb(lv_event_t *e) {
     hideInfoScreen();
+}
+
+static void config_btn_event_cb(lv_event_t *e) {
+    showConfigScreen();
 }
 
 void showInfoScreen() {
