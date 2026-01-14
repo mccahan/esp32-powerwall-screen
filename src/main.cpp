@@ -10,6 +10,7 @@
 #include "boot_screen.h"
 #include "main_screen.h"
 #include "info_screen.h"
+#include "wifi_error_screen.h"
 #include "improv_wifi.h"
 
 // Touch controller pins for Guition ESP32-S3-4848S040
@@ -143,8 +144,12 @@ void setup() {
 
     if (saved_ssid.length() > 0) {
         connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
+    } else {
+        // No saved credentials - show WiFi error screen after boot
+        hideBootScreen();
+        showWifiErrorScreen("WiFi not configured\nUse ESP Web Tools to set up");
     }
-    
+
     // Setup MQTT callbacks
     mqttClient.setSolarCallback(updateSolarValue);
     mqttClient.setGridCallback(updateGridValue);
@@ -244,5 +249,6 @@ void setupTouch() {
 void createUI() {
     createMainDashboard();
     createInfoScreen();
+    createWifiErrorScreen(getMainScreen());
     createBootScreen(getMainScreen());
 }
