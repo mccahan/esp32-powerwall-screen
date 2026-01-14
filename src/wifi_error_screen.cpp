@@ -95,11 +95,19 @@ void updateWifiErrorCountdown(unsigned long next_retry_time) {
     
     unsigned long now = millis();
     // Calculate time until next retry
-    if (next_retry_time > now) {
+    // Handle millis() overflow: if next_retry_time < now but the difference is huge,
+    // it's likely overflow and next_retry_time is actually in the future
+    if (next_retry_time > now || (now - next_retry_time) > (WIFI_RECONNECT_DELAY * 2)) {
         unsigned long seconds_remaining = (next_retry_time - now) / 1000;
-        char buf[64];
-        snprintf(buf, sizeof(buf), "Retrying in %us (tap to retry now)", (unsigned int)seconds_remaining);
-        lv_label_set_text(wifi_countdown_label, buf);
+        // Sanity check: don't show absurdly large countdowns
+        if (seconds_remaining < 60) {  // Max expected is 10 seconds + some buffer
+            char buf[64];
+            snprintf(buf, sizeof(buf), "Retrying in %us (tap to retry now)", (unsigned int)seconds_remaining);
+            lv_label_set_text(wifi_countdown_label, buf);
+        } else {
+            // Something is wrong with the calculation, show generic retry message
+            lv_label_set_text(wifi_countdown_label, "Retrying... (tap to retry)");
+        }
     } else {
         // Time has passed, should retry soon
         lv_label_set_text(wifi_countdown_label, "Retrying... (tap to retry)");
