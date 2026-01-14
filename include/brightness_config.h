@@ -22,8 +22,9 @@ struct BrightnessConfig {
     uint8_t dayStartHour = 7;   // 7 AM
     uint8_t dayEndHour = 22;     // 10 PM
     
-    // Idle dimming settings
-    bool idleDimmingEnabled = false;
+    // Idle dimming settings (separate for day and night)
+    bool dayIdleDimmingEnabled = false;
+    bool nightIdleDimmingEnabled = false;
     IdleTimeout idleTimeout = IDLE_NEVER;
     uint8_t idleBrightness = 80;  // Percentage to dim to when idle
 };

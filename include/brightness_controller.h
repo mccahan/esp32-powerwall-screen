@@ -37,6 +37,7 @@ private:
     void applyBrightness(uint8_t brightness);
     uint8_t getScheduledBrightness();  // Get brightness based on time of day
     bool shouldDimForIdle();
+    bool isDayTime();  // Check if current time is in day mode
 };
 
 extern BrightnessController brightnessController;

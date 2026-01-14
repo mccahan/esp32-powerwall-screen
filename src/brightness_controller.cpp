@@ -92,25 +92,39 @@ uint8_t BrightnessController::getScheduledBrightness() {
         return config.dayBrightness;
     }
     
-    // Check if we're in day or night mode
-    // Handle wrap-around case (e.g., 22:00 to 07:00)
-    bool isDayTime;
-    if (config.dayStartHour <= config.dayEndHour) {
-        // Normal case: 7:00 to 22:00
-        isDayTime = (currentHour >= config.dayStartHour && currentHour < config.dayEndHour);
-    } else {
-        // Wrap-around case: 22:00 to 07:00 (night is actually day)
-        isDayTime = (currentHour >= config.dayStartHour || currentHour < config.dayEndHour);
+    return isDayTime() ? config.dayBrightness : config.nightBrightness;
+}
+
+bool BrightnessController::isDayTime() {
+    BrightnessConfig& config = brightnessConfig.getConfig();
+    
+    // Get current hour from time config
+    int currentHour = timeConfig.getCurrentHour();
+    
+    // If time not available, default to day mode
+    if (currentHour < 0) {
+        return true;
     }
     
-    return isDayTime ? config.dayBrightness : config.nightBrightness;
+    // Check if we're in day or night mode
+    // Handle wrap-around case (e.g., 22:00 to 07:00)
+    if (config.dayStartHour <= config.dayEndHour) {
+        // Normal case: 7:00 to 22:00
+        return (currentHour >= config.dayStartHour && currentHour < config.dayEndHour);
+    } else {
+        // Wrap-around case: 22:00 to 07:00 (night is actually day)
+        return (currentHour >= config.dayStartHour || currentHour < config.dayEndHour);
+    }
 }
 
 bool BrightnessController::shouldDimForIdle() {
     BrightnessConfig& config = brightnessConfig.getConfig();
     
-    // Idle dimming disabled
-    if (!config.idleDimmingEnabled || config.idleTimeout == IDLE_NEVER) {
+    // Check if idle dimming is enabled for current time period
+    bool idleEnabledForCurrentTime = isDayTime() ? config.dayIdleDimmingEnabled : config.nightIdleDimmingEnabled;
+    
+    // Idle dimming disabled for current period
+    if (!idleEnabledForCurrentTime || config.idleTimeout == IDLE_NEVER) {
         return false;
     }
     

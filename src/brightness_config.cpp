@@ -13,7 +13,8 @@ void BrightnessConfigManager::begin() {
     config.nightBrightness = preferences.getUChar("nightBright", 60);
     config.dayStartHour = preferences.getUChar("dayStart", 7);
     config.dayEndHour = preferences.getUChar("dayEnd", 22);
-    config.idleDimmingEnabled = preferences.getBool("idleEnabled", false);
+    config.dayIdleDimmingEnabled = preferences.getBool("dayIdleEn", false);
+    config.nightIdleDimmingEnabled = preferences.getBool("nightIdleEn", false);
     config.idleTimeout = static_cast<IdleTimeout>(preferences.getUChar("idleTimeout", IDLE_NEVER));
     config.idleBrightness = preferences.getUChar("idleBright", 80);
     
@@ -27,7 +28,8 @@ void BrightnessConfigManager::saveConfig() {
     preferences.putUChar("nightBright", config.nightBrightness);
     preferences.putUChar("dayStart", config.dayStartHour);
     preferences.putUChar("dayEnd", config.dayEndHour);
-    preferences.putBool("idleEnabled", config.idleDimmingEnabled);
+    preferences.putBool("dayIdleEn", config.dayIdleDimmingEnabled);
+    preferences.putBool("nightIdleEn", config.nightIdleDimmingEnabled);
     preferences.putUChar("idleTimeout", static_cast<uint8_t>(config.idleTimeout));
     preferences.putUChar("idleBright", config.idleBrightness);
     

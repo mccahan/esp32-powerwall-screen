@@ -142,7 +142,8 @@ void PowerwallWebServer::setupRoutes() {
             if (doc.containsKey("nightBrightness")) config.nightBrightness = doc["nightBrightness"].as<uint8_t>();
             if (doc.containsKey("dayStartHour")) config.dayStartHour = doc["dayStartHour"].as<uint8_t>();
             if (doc.containsKey("dayEndHour")) config.dayEndHour = doc["dayEndHour"].as<uint8_t>();
-            if (doc.containsKey("idleDimmingEnabled")) config.idleDimmingEnabled = doc["idleDimmingEnabled"].as<bool>();
+            if (doc.containsKey("dayIdleDimmingEnabled")) config.dayIdleDimmingEnabled = doc["dayIdleDimmingEnabled"].as<bool>();
+            if (doc.containsKey("nightIdleDimmingEnabled")) config.nightIdleDimmingEnabled = doc["nightIdleDimmingEnabled"].as<bool>();
             if (doc.containsKey("idleTimeout")) {
                 int timeout = doc["idleTimeout"].as<int>();
                 config.idleTimeout = BrightnessConfigManager::secondsToTimeout(timeout);
@@ -164,7 +165,8 @@ void PowerwallWebServer::setupRoutes() {
         doc["nightBrightness"] = config.nightBrightness;
         doc["dayStartHour"] = config.dayStartHour;
         doc["dayEndHour"] = config.dayEndHour;
-        doc["idleDimmingEnabled"] = config.idleDimmingEnabled;
+        doc["dayIdleDimmingEnabled"] = config.dayIdleDimmingEnabled;
+        doc["nightIdleDimmingEnabled"] = config.nightIdleDimmingEnabled;
         doc["idleTimeout"] = BrightnessConfigManager::timeoutToSeconds(config.idleTimeout);
         doc["idleBrightness"] = config.idleBrightness;
 
@@ -424,8 +426,14 @@ String PowerwallWebServer::getConfigPage() {
             </div>
             <div class="form-group">
                 <label>
-                    <input type="checkbox" id="idleDimmingEnabled" name="idleDimmingEnabled" )rawliteral" + String(brightConf.idleDimmingEnabled ? "checked" : "") + R"rawliteral(>
-                    Enable Idle Dimming
+                    <input type="checkbox" id="dayIdleDimmingEnabled" name="dayIdleDimmingEnabled" )rawliteral" + String(brightConf.dayIdleDimmingEnabled ? "checked" : "") + R"rawliteral(>
+                    Enable Idle Dimming (Day)
+                </label>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="nightIdleDimmingEnabled" name="nightIdleDimmingEnabled" )rawliteral" + String(brightConf.nightIdleDimmingEnabled ? "checked" : "") + R"rawliteral(>
+                    Enable Idle Dimming (Night)
                 </label>
             </div>
             <div class="form-group">
@@ -549,7 +557,8 @@ String PowerwallWebServer::getConfigPage() {
                 nightBrightness: parseInt(formData.get('nightBrightness')),
                 dayStartHour: parseInt(formData.get('dayStartHour')),
                 dayEndHour: parseInt(formData.get('dayEndHour')),
-                idleDimmingEnabled: document.getElementById('idleDimmingEnabled').checked,
+                dayIdleDimmingEnabled: document.getElementById('dayIdleDimmingEnabled').checked,
+                nightIdleDimmingEnabled: document.getElementById('nightIdleDimmingEnabled').checked,
                 idleTimeout: parseInt(formData.get('idleTimeout')),
                 idleBrightness: parseInt(formData.get('idleBrightness'))
             };
