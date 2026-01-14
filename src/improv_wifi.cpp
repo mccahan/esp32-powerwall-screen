@@ -330,3 +330,10 @@ String getLocalIP() {
     }
     return "";
 }
+
+unsigned long getNextWiFiRetryTime() {
+    if (wifi_reconnect_attempt_time > 0) {
+        return wifi_reconnect_attempt_time + WIFI_RECONNECT_DELAY;
+    }
+    return 0;
+}

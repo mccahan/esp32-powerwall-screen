@@ -11,4 +11,7 @@ void showWifiErrorScreen(const char* message);
 void hideWifiErrorScreen();
 bool isWifiErrorScreenVisible();
 
+// Update countdown display
+void updateWifiErrorCountdown(unsigned long next_retry_time);
+
 #endif // WIFI_ERROR_SCREEN_H

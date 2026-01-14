@@ -210,6 +210,11 @@ void loop() {
         updateInfoScreenData();
     }
 
+    // Update WiFi error screen countdown if visible
+    if (isWifiErrorScreenVisible()) {
+        updateWifiErrorCountdown(getNextWiFiRetryTime());
+    }
+
     // Check boot screen timeout
     if (isBootScreenVisible()) {
         if (millis() - boot_start_time > BOOT_SCREEN_TIMEOUT) {
