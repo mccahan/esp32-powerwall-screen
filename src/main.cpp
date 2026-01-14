@@ -100,8 +100,8 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 void setup() {
     Serial.begin(115200);
     delay(100);
-    // Delay 10s for serial monitor attachment
-    delay(10000);
+    // Delay 5s for serial monitor attachment
+    delay(5000);
     Serial.println("\n\nPowerwall Display Starting...");
 
     // Setup display hardware first

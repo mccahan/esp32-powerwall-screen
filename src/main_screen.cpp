@@ -55,6 +55,11 @@ static lv_obj_t *lbl_batt_val = nullptr;
 static lv_obj_t *lbl_soc = nullptr;
 static lv_obj_t *bar_soc = nullptr;
 
+// Disable overlays for icons
+static lv_obj_t *img_solar_disabled = nullptr;
+static lv_obj_t *img_grid_disabled = nullptr;
+static lv_obj_t *img_battery_disabled = nullptr;
+
 // Icon images
 static lv_obj_t *img_solar = nullptr;
 static lv_obj_t *img_grid = nullptr;
@@ -164,9 +169,19 @@ void createMainDashboard() {
     lv_img_set_src(img_solar, &icon_solar_img);
     lv_obj_set_pos(img_solar, 205, 31);
 
+    img_solar_disabled = lv_img_create(main_screen);
+    lv_img_set_src(img_solar_disabled, &icon_solar_disabled_img);
+    lv_obj_set_pos(img_solar_disabled, 205, 31);
+    lv_obj_add_flag(img_solar_disabled, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
+
     img_grid = lv_img_create(main_screen);
     lv_img_set_src(img_grid, &icon_grid_img);
     lv_obj_set_pos(img_grid, 77, 159);
+
+    img_grid_disabled = lv_img_create(main_screen);
+    lv_img_set_src(img_grid_disabled, &icon_grid_disabled_img);
+    lv_obj_set_pos(img_grid_disabled, 77, 159);
+    lv_obj_add_flag(img_grid_disabled, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     img_home = lv_img_create(main_screen);
     lv_img_set_src(img_home, &icon_home_img);
@@ -175,6 +190,11 @@ void createMainDashboard() {
     img_battery = lv_img_create(main_screen);
     lv_img_set_src(img_battery, &icon_battery_img);
     lv_obj_set_pos(img_battery, 206, 265);
+
+    img_battery_disabled = lv_img_create(main_screen);
+    lv_img_set_src(img_battery_disabled, &icon_battery_disabled_img);
+    lv_obj_set_pos(img_battery_disabled, 206, 265);
+    lv_obj_add_flag(img_battery_disabled, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     img_center = lv_img_create(main_screen);
     lv_img_set_src(img_center, &icon_center_img);
@@ -337,6 +357,17 @@ void updateSolarValue(float watts) {
     if (lbl_solar_val) {
         char buf[24];
         float kw = watts / 1000.0f;
+
+        // Round to 0.0 if the value is between -100 and 100
+        if (watts > -100 && watts < 100) {
+            kw = 0.0f;
+            lv_obj_clear_flag(img_solar_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_solar_val, LV_OPA_80, 0);
+        } else {
+            lv_obj_add_flag(img_solar_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_solar_val, LV_OPA_COVER, 0);
+        }
+
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_solar_val, buf);
     }
@@ -348,6 +379,17 @@ void updateGridValue(float watts) {
     if (lbl_grid_val) {
         char buf[24];
         float kw = watts / 1000.0f;
+
+        // Round to 0.0 if the value is between -100 and 100
+        if (watts > -100 && watts < 100) {
+            kw = 0.0f;
+            lv_obj_clear_flag(img_grid_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_grid_val, LV_OPA_80, 0);
+        } else {
+            lv_obj_add_flag(img_grid_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_grid_val, LV_OPA_COVER, 0);
+        }
+
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_grid_val, buf);
     }
@@ -359,6 +401,12 @@ void updateHomeValue(float watts) {
     if (lbl_home_val) {
         char buf[24];
         float kw = watts / 1000.0f;
+
+        // Round to 0.0 if the value is between -100 and 100
+        if (watts > -100 && watts < 100) {
+            kw = 0.0f;
+        }
+
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_home_val, buf);
     }
@@ -370,6 +418,17 @@ void updateBatteryValue(float watts) {
     if (lbl_batt_val) {
         char buf[24];
         float kw = watts / 1000.0f;
+
+        // Round to 0.0 if the value is between -100 and 100
+        if (watts > -100 && watts < 100) {
+            kw = 0.0f;
+            lv_obj_clear_flag(img_battery_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_batt_val, LV_OPA_80, 0);
+        } else {
+            lv_obj_add_flag(img_battery_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_batt_val, LV_OPA_COVER, 0);
+        }
+
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_batt_val, buf);
     }

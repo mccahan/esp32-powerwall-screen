@@ -27,5 +27,8 @@ extern const lv_img_dsc_t icon_grid_offline_img;
 extern const lv_img_dsc_t icon_home_img;
 extern const lv_img_dsc_t icon_solar_img;
 extern const lv_img_dsc_t info_icon_img;
+extern const lv_img_dsc_t icon_battery_disabled_img;
+extern const lv_img_dsc_t icon_grid_disabled_img;
+extern const lv_img_dsc_t icon_solar_disabled_img;
 
 #endif // UI_ASSETS_H
