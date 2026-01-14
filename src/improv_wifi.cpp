@@ -2,6 +2,7 @@
 #include "main_screen.h"
 #include "boot_screen.h"
 #include "wifi_error_screen.h"
+#include "mqtt_config_screen.h"
 #include "mqtt_client.h"
 #include <WiFi.h>
 #include <lvgl.h>
@@ -234,14 +235,23 @@ void checkWiFiConnection() {
         std::vector<String> urls = {ip};
         sendImprovRPCResponse(improv::WIFI_SETTINGS, urls);
 
-        // Hide boot/error screens and show dashboard
+        // Hide boot/error screens
         hideBootScreen();
         hideWifiErrorScreen();
 
         Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
-        
-        // Now that WiFi is connected, connect to MQTT broker
-        mqttClient.connect();
+
+        // Check if MQTT is configured
+        MQTTConfig& mqtt_config = mqttClient.getConfig();
+        if (mqtt_config.host.length() > 0) {
+            // MQTT configured - connect to broker
+            hideMqttConfigScreen();
+            mqttClient.connect();
+        } else {
+            // MQTT not configured - show QR code to config page
+            showMqttConfigScreen(ip.c_str());
+            Serial.println("MQTT not configured - showing config screen");
+        }
     }
     else if (millis() - wifi_connect_start > WIFI_CONNECT_TIMEOUT) {
         wifi_connecting = false;

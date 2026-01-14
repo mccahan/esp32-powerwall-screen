@@ -67,4 +67,7 @@
 #define LV_USE_FLEX 1
 #define LV_USE_GRID 1
 
+/* Extra libs */
+#define LV_USE_QRCODE 1
+
 #endif /* LV_CONF_H */

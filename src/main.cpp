@@ -11,6 +11,7 @@
 #include "main_screen.h"
 #include "info_screen.h"
 #include "wifi_error_screen.h"
+#include "mqtt_config_screen.h"
 #include "improv_wifi.h"
 
 // Touch controller pins for Guition ESP32-S3-4848S040
@@ -249,6 +250,7 @@ void setupTouch() {
 void createUI() {
     createMainDashboard();
     createInfoScreen();
+    createMqttConfigScreen(getMainScreen());
     createWifiErrorScreen(getMainScreen());
     createBootScreen(getMainScreen());
 }

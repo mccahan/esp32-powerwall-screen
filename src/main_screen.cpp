@@ -1,5 +1,6 @@
 #include "main_screen.h"
 #include "info_screen.h"
+#include "mqtt_config_screen.h"
 #include "ui_assets/ui_assets.h"
 #include "mqtt_client.h"
 #include <WiFi.h>
@@ -106,6 +107,8 @@ unsigned long last_data_ms = 0;
 static unsigned long last_pulse_ms = 0;
 static unsigned long last_pulse_update_ms = 0;  // Throttle pulse updates
 
+// Track if we've received data (to hide config screen)
+static bool mqtt_data_received = false;
 
 // Power flow animation state
 static float g_grid_w = 0.0f;
@@ -352,6 +355,15 @@ void updateDataRxPulse() {
 // ============== Power Value Update Functions ==============
 // These will be called when MQTT data arrives
 
+// Helper to hide config screen on first data
+static void onDataReceived() {
+    if (!mqtt_data_received) {
+        mqtt_data_received = true;
+        hideMqttConfigScreen();
+    }
+    last_data_ms = millis();
+}
+
 void updateSolarValue(float watts) {
     g_solar_w = watts;  // Store for animation
     if (lbl_solar_val) {
@@ -371,7 +383,7 @@ void updateSolarValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_solar_val, buf);
     }
-    last_data_ms = millis();
+    onDataReceived();
 }
 
 void updateGridValue(float watts) {
@@ -393,7 +405,7 @@ void updateGridValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_grid_val, buf);
     }
-    last_data_ms = millis();
+    onDataReceived();
 }
 
 void updateHomeValue(float watts) {
@@ -410,7 +422,7 @@ void updateHomeValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_home_val, buf);
     }
-    last_data_ms = millis();
+    onDataReceived();
 }
 
 void updateBatteryValue(float watts) {
@@ -432,7 +444,7 @@ void updateBatteryValue(float watts) {
         snprintf(buf, sizeof(buf), "%.1f kW", kw);
         lv_label_set_text(lbl_batt_val, buf);
     }
-    last_data_ms = millis();
+    onDataReceived();
 }
 
 void updateSOC(float soc_percent) {
@@ -451,8 +463,8 @@ void updateSOC(float soc_percent) {
     if (bar_soc) {
         lv_bar_set_value(bar_soc, (int)roundf(adjusted), LV_ANIM_OFF);
     }
-    
-    last_data_ms = millis();
+
+    onDataReceived();
 }
 
 // ============== Power Flow Dot Animation ==============
