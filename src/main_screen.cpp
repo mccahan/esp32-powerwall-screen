@@ -423,7 +423,7 @@ void createMainDashboard() {
     // ========== Data RX Indicator Dot ==========
     dot_data_rx = lv_obj_create(main_screen);
     lv_obj_set_size(dot_data_rx, 10, 10);
-    lv_obj_set_pos(dot_data_rx, 10, 10);
+    lv_obj_set_pos(dot_data_rx, 10, TFT_HEIGHT - 20);
     lv_obj_set_style_radius(dot_data_rx, 5, 0);
     lv_obj_set_style_bg_color(dot_data_rx, lv_color_hex(0xFF0000), 0);
     lv_obj_set_style_bg_opa(dot_data_rx, LV_OPA_TRANSP, 0);
@@ -436,7 +436,7 @@ void createMainDashboard() {
     btn_info = lv_imgbtn_create(main_screen);
     lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon_img, NULL);
     lv_obj_set_size(btn_info, 55, 55);
-    lv_obj_set_pos(btn_info, TFT_WIDTH - 65, TFT_HEIGHT - 10 - 55);
+    lv_obj_set_pos(btn_info, 10, 10);
     lv_obj_add_event_cb(btn_info, info_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_flag(btn_info, LV_OBJ_FLAG_FLOATING);
 }
