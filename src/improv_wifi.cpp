@@ -24,6 +24,7 @@ bool wifi_connecting = false;
 unsigned long wifi_connect_start = 0;
 bool wifi_was_connected = false;
 unsigned long wifi_reconnect_attempt_time = 0;
+unsigned long wifi_disconnected_time = 0;
 
 // Preferences for storing WiFi credentials
 Preferences wifi_preferences;
@@ -247,6 +248,38 @@ void retryWiFiConnection() {
 void checkWiFiConnection() {
     wl_status_t wifi_status = WiFi.status();
     
+    // Handle WiFi reconnection (even when not actively connecting)
+    // This covers cases where WiFi reconnects automatically at driver level
+    if (!wifi_was_connected && wifi_status == WL_CONNECTED && wifi_reconnect_attempt_time > 0) {
+        wifi_was_connected = true;
+        wifi_connecting = false;
+        wifi_disconnected_time = 0;  // Reset disconnection timer
+        
+        Serial.println("WiFi reconnected!");
+        
+        String ip = getLocalIP();
+        Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
+        
+        // Hide boot/error screens
+        hideBootScreen();
+        hideWifiErrorScreen();
+        
+        // Start web server if not already running
+        webServer.begin();
+        
+        // Check if MQTT is configured
+        MQTTConfig& mqtt_config = mqttClient.getConfig();
+        if (mqtt_config.host.length() > 0) {
+            // MQTT configured - connect to broker
+            hideMqttConfigScreen();
+            mqttClient.connect();
+        } else {
+            // MQTT not configured - show QR code to config page
+            showMqttConfigScreen(ip.c_str());
+            Serial.println("MQTT not configured - showing config screen");
+        }
+    }
+    
     // Handle WiFi disconnection when it was previously connected
     if (wifi_was_connected && wifi_status != WL_CONNECTED) {
         wifi_was_connected = false;
@@ -262,6 +295,16 @@ void checkWiFiConnection() {
         
         // Set up for reconnection attempt
         wifi_reconnect_attempt_time = millis();
+        wifi_disconnected_time = millis();  // Start tracking disconnection time
+    }
+    
+    // Check if WiFi has been disconnected for too long - reboot device
+    if (wifi_disconnected_time > 0 && wifi_status != WL_CONNECTED) {
+        if (millis() - wifi_disconnected_time >= WIFI_DISCONNECTION_REBOOT_TIMEOUT) {
+            Serial.println("WiFi disconnected for 5 minutes. Rebooting...");
+            delay(1000);
+            ESP.restart();
+        }
     }
     
     // Handle periodic reconnection attempts when WiFi is not connected
@@ -279,6 +322,7 @@ void checkWiFiConnection() {
         if (wifi_status == WL_CONNECTED) {
             wifi_connecting = false;
             wifi_was_connected = true;
+            wifi_disconnected_time = 0;  // Reset disconnection timer
             improv_state = improv::STATE_PROVISIONED;
             sendImprovState();
 
