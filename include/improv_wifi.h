@@ -19,6 +19,9 @@ void connectToWiFi(const char* ssid, const char* password);
 void checkWiFiConnection();
 String getLocalIP();
 
+// Retry WiFi connection with saved credentials
+void retryWiFiConnection();
+
 // Get next WiFi retry time (for countdown display)
 unsigned long getNextWiFiRetryTime();
 

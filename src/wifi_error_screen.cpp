@@ -18,22 +18,7 @@ static void retry_button_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
     if (code == LV_EVENT_CLICKED) {
         Serial.println("Manual WiFi retry triggered by user");
-        
-        // Load saved credentials and attempt reconnection
-        String saved_ssid = "";
-        String saved_pass = "";
-        
-        if (wifi_preferences.begin("wifi", false)) {
-            if (wifi_preferences.isKey("ssid")) {
-                saved_ssid = wifi_preferences.getString("ssid", "");
-                saved_pass = wifi_preferences.getString("password", "");
-            }
-            wifi_preferences.end();
-        }
-        
-        if (saved_ssid.length() > 0) {
-            connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
-        }
+        retryWiFiConnection();
     }
 }
 

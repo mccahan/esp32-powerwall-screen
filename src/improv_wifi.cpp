@@ -225,6 +225,26 @@ void connectToWiFi(const char* ssid, const char* password) {
     wifi_connect_start = millis();
 }
 
+void retryWiFiConnection() {
+    // Load saved credentials and attempt reconnection
+    String saved_ssid = "";
+    String saved_pass = "";
+    
+    if (wifi_preferences.begin("wifi", false)) {
+        if (wifi_preferences.isKey("ssid")) {
+            saved_ssid = wifi_preferences.getString("ssid", "");
+            saved_pass = wifi_preferences.getString("password", "");
+        }
+        wifi_preferences.end();
+    }
+    
+    if (saved_ssid.length() > 0) {
+        Serial.println("Attempting to reconnect to WiFi...");
+        connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
+        wifi_reconnect_attempt_time = millis();
+    }
+}
+
 void checkWiFiConnection() {
     wl_status_t wifi_status = WiFi.status();
     
@@ -249,24 +269,7 @@ void checkWiFiConnection() {
     if (!wifi_connecting && wifi_status != WL_CONNECTED && wifi_reconnect_attempt_time > 0) {
         // Check if it's time to retry connection
         if (millis() - wifi_reconnect_attempt_time >= WIFI_RECONNECT_DELAY) {
-            // Try to reconnect with saved credentials
-            String saved_ssid = "";
-            String saved_pass = "";
-            
-            if (wifi_preferences.begin("wifi", false)) {
-                if (wifi_preferences.isKey("ssid")) {
-                    saved_ssid = wifi_preferences.getString("ssid", "");
-                    saved_pass = wifi_preferences.getString("password", "");
-                }
-                wifi_preferences.end();
-            }
-            
-            if (saved_ssid.length() > 0) {
-                Serial.println("Attempting to reconnect to WiFi...");
-                connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
-                // Update timestamp to respect the reconnection delay
-                wifi_reconnect_attempt_time = millis();
-            }
+            retryWiFiConnection();
         }
     }
     
