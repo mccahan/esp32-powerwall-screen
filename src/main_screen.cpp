@@ -13,9 +13,38 @@
 // UI Layout Positions (from powerwall-monitor.yml design)
 #define LABEL_HEIGHT 28
 #define LABEL_HEIGHT_LARGE 39
-#define SOLAR_ICON_X 205
-#define SOLAR_ICON_Y 31
+#define ICON_WIDTH 70
+#define ICON_HEIGHT 70
 
+// Icon positions
+#define SOLAR_ICON_X    205
+#define SOLAR_ICON_Y    31
+#define GRID_ICON_X     77
+#define GRID_ICON_Y     159
+#define HOME_ICON_X     333
+#define HOME_ICON_Y     159
+#define BATTERY_ICON_X  206
+#define BATTERY_ICON_Y  265
+#define CENTER_ICON_X   209
+#define CENTER_ICON_Y   163
+#define EV_ICON_X       340
+#define EV_ICON_Y       31
+
+// Animation path centers (icon center positions)
+#define SOLAR_CENTER_X   (SOLAR_ICON_X + ICON_WIDTH / 2)
+#define SOLAR_CENTER_Y   (SOLAR_ICON_Y + ICON_HEIGHT / 2)
+#define GRID_CENTER_X    (GRID_ICON_X + ICON_WIDTH / 2)
+#define GRID_CENTER_Y    (GRID_ICON_Y + ICON_HEIGHT / 2)
+#define HOME_CENTER_X    (HOME_ICON_X + ICON_WIDTH / 2)
+#define HOME_CENTER_Y    (HOME_ICON_Y + ICON_HEIGHT / 2)
+#define BATTERY_CENTER_X (BATTERY_ICON_X + ICON_WIDTH / 2)
+#define BATTERY_CENTER_Y (BATTERY_ICON_Y + ICON_HEIGHT / 2)
+#define CENTER_X         (CENTER_ICON_X + ICON_WIDTH / 2)
+#define CENTER_Y         (CENTER_ICON_Y + ICON_HEIGHT / 2)
+#define EV_CENTER_X      (EV_ICON_X + ICON_WIDTH / 2)
+#define EV_CENTER_Y      (EV_ICON_Y + ICON_HEIGHT / 2)
+
+// Value label positions
 #define BATTERY_VAL_Y 345
 #define SOLAR_VAL_Y (SOLAR_ICON_Y + 80)
 #define GRID_VAL_X 62
@@ -33,8 +62,6 @@
 #define SOC_BAR_Y 454
 #define SOC_BAR_WIDTH 316
 #define SOC_BAR_HEIGHT 13
-#define GRID_OFFLINE_X 77
-#define GRID_OFFLINE_Y 159
 
 // Theme colors (matching ESPHome config)
 #define COLOR_BG        0x0A0C10
@@ -48,9 +75,7 @@
 #define COLOR_GRAY      0x6A6A6A  // Used for dimmed text in recolor mode
 #define COLOR_EV        0x06B6D4  // Cyan for EV charger
 
-// EV Layout positions
-#define EV_ICON_X       340
-#define EV_ICON_Y       31
+// EV value label positions
 #define EV_VAL_X        318
 #define EV_VAL_Y        (EV_ICON_Y + 80)
 #define EV_VAL_WIDTH    100
@@ -218,34 +243,34 @@ void createMainDashboard() {
 
     img_solar_disabled = lv_img_create(main_screen);
     lv_img_set_src(img_solar_disabled, &icon_solar_disabled_img);
-    lv_obj_set_pos(img_solar_disabled, 205, 31);
+    lv_obj_set_pos(img_solar_disabled, SOLAR_ICON_X, SOLAR_ICON_Y);
     lv_obj_add_flag(img_solar_disabled, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     img_grid = lv_img_create(main_screen);
     lv_img_set_src(img_grid, &icon_grid_img);
-    lv_obj_set_pos(img_grid, 77, 159);
+    lv_obj_set_pos(img_grid, GRID_ICON_X, GRID_ICON_Y);
 
     img_grid_disabled = lv_img_create(main_screen);
     lv_img_set_src(img_grid_disabled, &icon_grid_disabled_img);
-    lv_obj_set_pos(img_grid_disabled, 77, 159);
+    lv_obj_set_pos(img_grid_disabled, GRID_ICON_X, GRID_ICON_Y);
     lv_obj_add_flag(img_grid_disabled, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     img_home = lv_img_create(main_screen);
     lv_img_set_src(img_home, &icon_home_img);
-    lv_obj_set_pos(img_home, 333, 159);
+    lv_obj_set_pos(img_home, HOME_ICON_X, HOME_ICON_Y);
 
     img_battery = lv_img_create(main_screen);
     lv_img_set_src(img_battery, &icon_battery_img);
-    lv_obj_set_pos(img_battery, 206, 265);
+    lv_obj_set_pos(img_battery, BATTERY_ICON_X, BATTERY_ICON_Y);
 
     img_battery_disabled = lv_img_create(main_screen);
     lv_img_set_src(img_battery_disabled, &icon_battery_disabled_img);
-    lv_obj_set_pos(img_battery_disabled, 206, 265);
+    lv_obj_set_pos(img_battery_disabled, BATTERY_ICON_X, BATTERY_ICON_Y);
     lv_obj_add_flag(img_battery_disabled, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     img_center = lv_img_create(main_screen);
     lv_img_set_src(img_center, &icon_center_img);
-    lv_obj_set_pos(img_center, 209, 163);
+    lv_obj_set_pos(img_center, CENTER_ICON_X, CENTER_ICON_Y);
 
     // ========== EV Icon (hidden by default until enabled) ==========
     img_ev = lv_img_create(main_screen);
@@ -377,7 +402,7 @@ void createMainDashboard() {
     // ========== Grid Offline Overlay ==========
     img_grid_offline = lv_img_create(main_screen);
     lv_img_set_src(img_grid_offline, &icon_grid_offline_img);
-    lv_obj_set_pos(img_grid_offline, 77, 159);
+    lv_obj_set_pos(img_grid_offline, GRID_ICON_X, GRID_ICON_Y);
     lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     // ========== Data RX Indicator Dot ==========
@@ -396,7 +421,7 @@ void createMainDashboard() {
     btn_info = lv_imgbtn_create(main_screen);
     lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon_img, NULL);
     lv_obj_set_size(btn_info, 55, 55);
-    lv_obj_set_pos(btn_info, TFT_WIDTH - 65, TFT_HEIGHT - 10);
+    lv_obj_set_pos(btn_info, TFT_WIDTH - 65, TFT_HEIGHT - 10 - 55);
     lv_obj_add_event_cb(btn_info, info_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_flag(btn_info, LV_OBJ_FLAG_FLOATING);
 }
@@ -745,13 +770,13 @@ namespace {
 }
 
 void updatePowerFlowAnimation() {
-    // Geometry - positions of each power element
-    const int SX = 240, SY = 80;   // Solar
-    const int HX = 360, HY = 194;  // Home
-    const int BX = 240, BY = 280;  // Battery
-    const int GX = 120, GY = 194;  // Grid
-    const int CX = 240, CY = 194;  // Center
-    const int EVX = 375, EVY = 95; // EV (top right, above home)
+    // Geometry - icon center positions (computed from icon positions + half icon size)
+    const int SX = SOLAR_CENTER_X, SY = SOLAR_CENTER_Y;     // Solar
+    const int HX = HOME_CENTER_X, HY = HOME_CENTER_Y;       // Home
+    const int BX = BATTERY_CENTER_X, BY = BATTERY_CENTER_Y; // Battery
+    const int GX = GRID_CENTER_X, GY = GRID_CENTER_Y;       // Grid
+    const int CX = CENTER_X, CY = CENTER_Y;                 // Center
+    const int EVX = EV_CENTER_X, EVY = EV_CENTER_Y;         // EV
 
     const float THRESH_W = 50.0f;
     const float FADE = 0.12f;
