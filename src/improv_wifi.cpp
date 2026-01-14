@@ -246,7 +246,7 @@ void checkWiFiConnection() {
     }
     
     // Handle periodic reconnection attempts when WiFi is not connected
-    if (!wifi_connecting && wifi_status != WL_CONNECTED) {
+    if (!wifi_connecting && wifi_status != WL_CONNECTED && wifi_reconnect_attempt_time > 0) {
         // Check if it's time to retry connection
         if (millis() - wifi_reconnect_attempt_time >= WIFI_RECONNECT_DELAY) {
             // Try to reconnect with saved credentials
@@ -264,6 +264,8 @@ void checkWiFiConnection() {
             if (saved_ssid.length() > 0) {
                 Serial.println("Attempting to reconnect to WiFi...");
                 connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
+                // Update timestamp to respect the reconnection delay
+                wifi_reconnect_attempt_time = millis();
             }
         }
     }
