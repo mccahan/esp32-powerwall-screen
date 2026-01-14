@@ -552,6 +552,7 @@ void updateOffGridStatus(int offgrid) {
     }
     
     Serial.printf("Off-grid status: %d\n", offgrid);
+    onDataReceived();
 }
 
 void updateTimeRemaining(float hours) {
@@ -575,6 +576,7 @@ void updateTimeRemaining(float hours) {
     }
     
     Serial.printf("Time remaining: %.1f hours\n", hours);
+    onDataReceived();
 }
 
 // ============== Power Flow Dot Animation ==============
