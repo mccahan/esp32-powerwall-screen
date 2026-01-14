@@ -31,5 +31,7 @@ extern const lv_img_dsc_t icon_battery_disabled_img;
 extern const lv_img_dsc_t icon_grid_disabled_img;
 extern const lv_img_dsc_t icon_solar_disabled_img;
 extern const lv_img_dsc_t icon_no_wifi_img;
+extern const lv_img_dsc_t icon_ev_img;
+extern const lv_img_dsc_t icon_ev_disabled_img;
 
 #endif // UI_ASSETS_H

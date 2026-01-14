@@ -16,6 +16,12 @@ void updateSOC(float soc_percent);
 void updateOffGridStatus(int offgrid);
 void updateTimeRemaining(float hours);
 
+// EV charger update functions
+void updateEVValue(float watts);
+void updateEVConnected(bool connected);
+void updateEVSOC(float percent);
+void setEVEnabled(bool enabled);
+
 // Animation updates (called from main loop)
 void updateDataRxPulse();
 void updatePowerFlowAnimation();

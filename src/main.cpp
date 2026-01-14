@@ -197,9 +197,17 @@ void setup() {
     mqttClient.setSOCCallback(updateSOC);
     mqttClient.setOffGridCallback(updateOffGridStatus);
     mqttClient.setTimeRemainingCallback(updateTimeRemaining);
-    
+
+    // Setup EV callbacks
+    mqttClient.setEVCallback(updateEVValue);
+    mqttClient.setEVConnectedCallback(updateEVConnected);
+    mqttClient.setEVSOCCallback(updateEVSOC);
+
     // Initialize MQTT client (will load config from flash)
     mqttClient.begin();
+
+    // Initialize EV display state from config
+    setEVEnabled(mqttClient.getConfig().ev_enabled);
 
     // Note: Web server is started after WiFi connects (in checkWiFiConnection)
     // to avoid port conflict with captive portal

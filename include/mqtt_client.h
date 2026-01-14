@@ -17,6 +17,12 @@ struct MQTTConfig {
     String user;
     String password;
     String topic_prefix;
+
+    // EV Charger configuration (optional)
+    bool ev_enabled;
+    String ev_power_topic;      // Required if enabled - full MQTT topic path
+    String ev_connected_topic;  // Optional - vehicle connected status
+    String ev_soc_topic;        // Optional - vehicle charge level %
 };
 
 // MQTT Client class
@@ -42,7 +48,12 @@ public:
     void setSOCCallback(void (*callback)(float));
     void setOffGridCallback(void (*callback)(int));
     void setTimeRemainingCallback(void (*callback)(float));
-    
+
+    // EV callbacks
+    void setEVCallback(void (*callback)(float));
+    void setEVConnectedCallback(void (*callback)(bool));
+    void setEVSOCCallback(void (*callback)(float));
+
 private:
     AsyncMqttClient mqtt_client;
     MQTTConfig config;
@@ -61,7 +72,13 @@ private:
     void (*socCallback)(float);
     void (*offGridCallback)(int);
     void (*timeRemainingCallback)(float);
-    
+
+    // EV callbacks
+    void (*evCallback)(float);
+    void (*evConnectedCallback)(bool);
+    void (*evSOCCallback)(float);
+    float last_ev_power;  // Store for home subtraction
+
     void onMqttConnect(bool sessionPresent);
     void onMqttDisconnect(AsyncMqttClientDisconnectReason reason);
     void onMqttMessage(char* topic, char* payload, AsyncMqttClientMessageProperties properties, size_t len, size_t index, size_t total);

@@ -13,9 +13,11 @@
 // UI Layout Positions (from powerwall-monitor.yml design)
 #define LABEL_HEIGHT 28
 #define LABEL_HEIGHT_LARGE 39
+#define SOLAR_ICON_X 205
+#define SOLAR_ICON_Y 31
 
 #define BATTERY_VAL_Y 345
-#define SOLAR_VAL_Y 111
+#define SOLAR_VAL_Y (SOLAR_ICON_Y + 80)
 #define GRID_VAL_X 62
 #define GRID_VAL_Y 240
 #define GRID_VAL_WIDTH 100
@@ -44,6 +46,14 @@
 #define COLOR_BAR_BG    0x16181C
 #define COLOR_BAR_FILL  0x22C55E
 #define COLOR_GRAY      0x6A6A6A  // Used for dimmed text in recolor mode
+#define COLOR_EV        0x06B6D4  // Cyan for EV charger
+
+// EV Layout positions
+#define EV_ICON_X       340
+#define EV_ICON_Y       31
+#define EV_VAL_X        318
+#define EV_VAL_Y        (EV_ICON_Y + 80)
+#define EV_VAL_WIDTH    100
 
 // Animation timing constants
 #define ANIMATION_FRAME_MS  33  // ~30 FPS (matches ESPHome 33ms update_interval)
@@ -80,6 +90,11 @@ static lv_obj_t *img_home = nullptr;
 static lv_obj_t *img_battery = nullptr;
 static lv_obj_t *img_center = nullptr;
 
+// EV charger elements (hidden by default)
+static lv_obj_t *img_ev = nullptr;
+static lv_obj_t *img_ev_disabled = nullptr;
+static lv_obj_t *lbl_ev_val = nullptr;
+static lv_obj_t *lbl_ev_soc = nullptr;
 
 // Data RX indicator dot
 static lv_obj_t *dot_data_rx = nullptr;
@@ -110,6 +125,11 @@ static lv_obj_t *dot_batt_grid = nullptr;
 static lv_obj_t *dot_batt_grid_2 = nullptr;
 static lv_obj_t *dot_batt_grid_3 = nullptr;
 
+// EV flow dots (Home -> EV)
+static lv_obj_t *dot_home_ev = nullptr;
+static lv_obj_t *dot_home_ev_2 = nullptr;
+static lv_obj_t *dot_home_ev_3 = nullptr;
+
 // Forward declaration for info button callback
 static void info_btn_event_cb(lv_event_t *e);
 
@@ -131,6 +151,12 @@ static float ph_master = 0.0f;
 static unsigned long g_last_anim_ms = 0;
 static bool g_offgrid = false;
 static float g_time_remaining = 0.0f;
+
+// EV state
+static bool g_ev_enabled = false;
+static float g_ev_w = 0.0f;
+static bool g_ev_connected = false;
+static float g_ev_soc = 0.0f;
 
 void createMainDashboard() {
     // Main screen with dark background
@@ -180,10 +206,15 @@ void createMainDashboard() {
     dot_batt_grid_2 = create_dot(COLOR_BATTERY);
     dot_batt_grid_3 = create_dot(COLOR_BATTERY);
 
+    // EV flows (cyan dots - from home to EV)
+    dot_home_ev = create_dot(COLOR_EV);
+    dot_home_ev_2 = create_dot(COLOR_EV);
+    dot_home_ev_3 = create_dot(COLOR_EV);
+
     // ========== Icon Images (created after dots so dots appear underneath) ==========
     img_solar = lv_img_create(main_screen);
     lv_img_set_src(img_solar, &icon_solar_img);
-    lv_obj_set_pos(img_solar, 205, 31);
+    lv_obj_set_pos(img_solar, SOLAR_ICON_X, SOLAR_ICON_Y);
 
     img_solar_disabled = lv_img_create(main_screen);
     lv_img_set_src(img_solar_disabled, &icon_solar_disabled_img);
@@ -215,6 +246,17 @@ void createMainDashboard() {
     img_center = lv_img_create(main_screen);
     lv_img_set_src(img_center, &icon_center_img);
     lv_obj_set_pos(img_center, 209, 163);
+
+    // ========== EV Icon (hidden by default until enabled) ==========
+    img_ev = lv_img_create(main_screen);
+    lv_img_set_src(img_ev, &icon_ev_img);
+    lv_obj_set_pos(img_ev, EV_ICON_X, EV_ICON_Y);
+    lv_obj_add_flag(img_ev, LV_OBJ_FLAG_HIDDEN);
+
+    img_ev_disabled = lv_img_create(main_screen);
+    lv_img_set_src(img_ev_disabled, &icon_ev_disabled_img);
+    lv_obj_set_pos(img_ev_disabled, EV_ICON_X, EV_ICON_Y);
+    lv_obj_add_flag(img_ev_disabled, LV_OBJ_FLAG_HIDDEN);
 
     // ========== POWER VALUE LABELS (using custom font space_bold_21) ==========
     // Battery value - centered at bottom
@@ -256,6 +298,27 @@ void createMainDashboard() {
     lv_obj_set_pos(lbl_home_val, HOME_VAL_X, HOME_VAL_Y);
     lv_obj_set_width(lbl_home_val, HOME_VAL_WIDTH);
     lv_obj_set_height(lbl_home_val, LABEL_HEIGHT);
+
+    // EV value label (hidden by default)
+    lbl_ev_val = lv_label_create(main_screen);
+    lv_label_set_text(lbl_ev_val, "0.0 kW");
+    lv_obj_set_style_text_color(lbl_ev_val, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_ev_val, &space_bold_21, 0);
+    lv_obj_set_style_text_align(lbl_ev_val, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_ev_val, EV_VAL_X, EV_VAL_Y);
+    lv_obj_set_width(lbl_ev_val, EV_VAL_WIDTH);
+    lv_obj_set_height(lbl_ev_val, LABEL_HEIGHT);
+    lv_obj_add_flag(lbl_ev_val, LV_OBJ_FLAG_HIDDEN);
+
+    // EV SOC label (smaller, below EV value, hidden by default)
+    lbl_ev_soc = lv_label_create(main_screen);
+    lv_label_set_text(lbl_ev_soc, "");
+    lv_obj_set_style_text_color(lbl_ev_soc, lv_color_hex(COLOR_EV), 0);
+    lv_obj_set_style_text_font(lbl_ev_soc, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_align(lbl_ev_soc, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_pos(lbl_ev_soc, EV_VAL_X, EV_VAL_Y + LABEL_HEIGHT);
+    lv_obj_set_width(lbl_ev_soc, EV_VAL_WIDTH);
+    lv_obj_add_flag(lbl_ev_soc, LV_OBJ_FLAG_HIDDEN);
 
     // ========== SOC Label (using custom font space_bold_30) ==========
     // SOC percentage - centered above battery bar
@@ -333,7 +396,7 @@ void createMainDashboard() {
     btn_info = lv_imgbtn_create(main_screen);
     lv_imgbtn_set_src(btn_info, LV_IMGBTN_STATE_RELEASED, NULL, &info_icon_img, NULL);
     lv_obj_set_size(btn_info, 55, 55);
-    lv_obj_set_pos(btn_info, TFT_WIDTH - 65, 10);
+    lv_obj_set_pos(btn_info, TFT_WIDTH - 65, TFT_HEIGHT - 10);
     lv_obj_add_event_cb(btn_info, info_btn_event_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_add_flag(btn_info, LV_OBJ_FLAG_FLOATING);
 }
@@ -583,6 +646,91 @@ void updateTimeRemaining(float hours) {
     onDataReceived();
 }
 
+// ============== EV Charger Functions ==============
+
+void setEVEnabled(bool enabled) {
+    g_ev_enabled = enabled;
+
+    if (enabled) {
+        // Show EV elements
+        if (img_ev) lv_obj_clear_flag(img_ev, LV_OBJ_FLAG_HIDDEN);
+        if (lbl_ev_val) lv_obj_clear_flag(lbl_ev_val, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        // Hide all EV elements
+        if (img_ev) lv_obj_add_flag(img_ev, LV_OBJ_FLAG_HIDDEN);
+        if (img_ev_disabled) lv_obj_add_flag(img_ev_disabled, LV_OBJ_FLAG_HIDDEN);
+        if (lbl_ev_val) lv_obj_add_flag(lbl_ev_val, LV_OBJ_FLAG_HIDDEN);
+        if (lbl_ev_soc) lv_obj_add_flag(lbl_ev_soc, LV_OBJ_FLAG_HIDDEN);
+        // Hide animation dots
+        if (dot_home_ev) lv_obj_add_flag(dot_home_ev, LV_OBJ_FLAG_HIDDEN);
+        if (dot_home_ev_2) lv_obj_add_flag(dot_home_ev_2, LV_OBJ_FLAG_HIDDEN);
+        if (dot_home_ev_3) lv_obj_add_flag(dot_home_ev_3, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void updateEVValue(float watts) {
+    g_ev_w = watts;
+
+    if (!g_ev_enabled) return;
+
+    if (lbl_ev_val) {
+        char buf[BUFFER_SIZE_SMALL];
+        float kw = watts / 1000.0f;
+
+        // Show disabled state if power is near zero
+        if (watts > -100 && watts < 100) {
+            kw = 0.0f;
+            if (img_ev_disabled) lv_obj_clear_flag(img_ev_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_ev_val, LV_OPA_80, 0);
+        } else {
+            if (img_ev_disabled) lv_obj_add_flag(img_ev_disabled, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_opa(lbl_ev_val, LV_OPA_COVER, 0);
+        }
+
+        snprintf(buf, sizeof(buf), "%.1f kW", kw);
+        lv_label_set_text(lbl_ev_val, buf);
+    }
+
+    Serial.printf("EV Power: %.1f W\n", watts);
+    onDataReceived();
+}
+
+void updateEVConnected(bool connected) {
+    g_ev_connected = connected;
+
+    if (!g_ev_enabled) return;
+
+    // When connected, show normal icon; when not connected, dim the icon
+    if (img_ev) {
+        if (connected) {
+            lv_obj_set_style_opa(img_ev, LV_OPA_COVER, 0);
+        } else {
+            lv_obj_set_style_opa(img_ev, LV_OPA_50, 0);
+        }
+    }
+
+    Serial.printf("EV Connected: %s\n", connected ? "yes" : "no");
+}
+
+void updateEVSOC(float percent) {
+    g_ev_soc = percent;
+
+    if (!g_ev_enabled) return;
+
+    if (lbl_ev_soc) {
+        if (percent > 0) {
+            char buf[BUFFER_SIZE_SMALL];
+            snprintf(buf, sizeof(buf), "%.0f%%", percent);
+            lv_label_set_text(lbl_ev_soc, buf);
+            lv_obj_clear_flag(lbl_ev_soc, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(lbl_ev_soc, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
+    Serial.printf("EV SOC: %.1f%%\n", percent);
+}
+
 // ============== Power Flow Dot Animation ==============
 
 // Helper functions for animation (defined once, outside the main animation function)
@@ -603,6 +751,7 @@ void updatePowerFlowAnimation() {
     const int BX = 240, BY = 280;  // Battery
     const int GX = 120, GY = 194;  // Grid
     const int CX = 240, CY = 194;  // Center
+    const int EVX = 375, EVY = 95; // EV (top right, above home)
 
     const float THRESH_W = 50.0f;
     const float FADE = 0.12f;
@@ -692,6 +841,7 @@ void updatePowerFlowAnimation() {
     float f_s2h = 0, f_s2b = 0, f_s2g = 0;
     float f_g2h = 0, f_g2b = 0;
     float f_b2h = 0, f_b2g = 0;
+    float f_h2ev = 0;  // Home to EV flow
 
     float rem_solar = solar_src;
     float rem_home = home_sink;
@@ -749,6 +899,11 @@ void updatePowerFlowAnimation() {
         rem_grid -= f_b2g;
     }
 
+    // Home to EV (EV charging power, if EV is enabled)
+    if (g_ev_enabled && g_ev_w > THRESH_W) {
+        f_h2ev = g_ev_w;
+    }
+
     // Find max active flow
     float max_active = 0.0f;
     auto consider = [&](float w) {
@@ -758,6 +913,7 @@ void updatePowerFlowAnimation() {
     consider(f_s2h); consider(f_s2b); consider(f_s2g);
     consider(f_g2h); consider(f_g2b);
     consider(f_b2h); consider(f_b2g);
+    consider(f_h2ev);  // EV flow
 
     // If no active flows, hide all dots
     if (max_active < THRESH_W) {
@@ -768,7 +924,8 @@ void updatePowerFlowAnimation() {
             dot_grid_home, dot_grid_home_2, dot_grid_home_3,
             dot_grid_batt, dot_grid_batt_2, dot_grid_batt_3,
             dot_batt_home, dot_batt_home_2, dot_batt_home_3,
-            dot_batt_grid, dot_batt_grid_2, dot_batt_grid_3
+            dot_batt_grid, dot_batt_grid_2, dot_batt_grid_3,
+            dot_home_ev, dot_home_ev_2, dot_home_ev_3  // EV dots
         };
         for (auto dot : all_dots) {
             lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
@@ -837,4 +994,37 @@ void updatePowerFlowAnimation() {
     animate_dot(dot_batt_grid, phase_1, f_b2g, BX, BY, GX, GY);
     animate_dot(dot_batt_grid_2, phase_2, f_b2g, BX, BY, GX, GY);
     animate_dot(dot_batt_grid_3, phase_3, f_b2g, BX, BY, GX, GY);
+
+    // EV flows (cyan dots) - direct path from Home to EV (not through center)
+    // Use a simpler direct linear animation for this short path
+    auto animate_dot_direct = [&](lv_obj_t* dot, float t, float watts,
+                                   int x_src, int y_src, int x_dst, int y_dst) {
+        if (watts < THRESH_W) {
+            lv_obj_add_flag(dot, LV_OBJ_FLAG_HIDDEN);
+            return;
+        }
+
+        lv_obj_clear_flag(dot, LV_OBJ_FLAG_HIDDEN);
+        t = clampf(t, 0.0f, 1.0f);
+
+        // Direct linear interpolation
+        int x = lerp_i(x_src, x_dst, t);
+        int y = lerp_i(y_src, y_dst, t);
+        set_dot_pos(dot, x, y);
+
+        // Fade in/out at ends
+        float alpha = 1.0f;
+        if (t < FADE) {
+            alpha = t / FADE;
+        } else if (t > (1.0f - FADE)) {
+            alpha = (1.0f - t) / FADE;
+        }
+        set_dot_opa(dot, alpha);
+    };
+
+    if (g_ev_enabled) {
+        animate_dot_direct(dot_home_ev, phase_1, f_h2ev, HX, HY, EVX, EVY);
+        animate_dot_direct(dot_home_ev_2, phase_2, f_h2ev, HX, HY, EVX, EVY);
+        animate_dot_direct(dot_home_ev_3, phase_3, f_h2ev, HX, HY, EVX, EVY);
+    }
 }

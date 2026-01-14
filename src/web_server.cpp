@@ -1,4 +1,5 @@
 #include "web_server.h"
+#include "main_screen.h"
 #include <ArduinoJson.h>
 
 // Global instance
@@ -219,6 +220,59 @@ void PowerwallWebServer::setupRoutes() {
             strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
             doc["currentTime"] = timeStr;
         }
+
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    // API endpoint to save EV configuration
+    server.on("/api/ev", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (total > MAX_JSON_PAYLOAD_SIZE) {
+                request->send(413, "application/json", "{\"error\":\"Payload too large\"}");
+                return;
+            }
+
+            StaticJsonDocument<512> doc;
+            DeserializationError error = deserializeJson(doc, data, len);
+
+            if (error) {
+                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+                return;
+            }
+
+            MQTTConfig& config = mqttClient.getConfig();
+            bool wasEnabled = config.ev_enabled;
+
+            if (doc.containsKey("enabled")) config.ev_enabled = doc["enabled"].as<bool>();
+            if (doc.containsKey("powerTopic")) config.ev_power_topic = doc["powerTopic"].as<String>();
+            if (doc.containsKey("connectedTopic")) config.ev_connected_topic = doc["connectedTopic"].as<String>();
+            if (doc.containsKey("socTopic")) config.ev_soc_topic = doc["socTopic"].as<String>();
+
+            // Save config and update UI
+            mqttClient.saveConfig();
+            setEVEnabled(config.ev_enabled);
+
+            // If EV was just enabled or topics changed, reconnect MQTT to subscribe to new topics
+            if (config.ev_enabled && mqttClient.isConnected()) {
+                mqttClient.disconnect();
+                mqttClient.connect();
+            }
+
+            request->send(200, "application/json", "{\"status\":\"ok\"}");
+        }
+    );
+
+    // API endpoint to get current EV configuration
+    server.on("/api/ev", HTTP_GET, [](AsyncWebServerRequest *request) {
+        MQTTConfig& config = mqttClient.getConfig();
+
+        StaticJsonDocument<512> doc;
+        doc["enabled"] = config.ev_enabled;
+        doc["powerTopic"] = config.ev_power_topic;
+        doc["connectedTopic"] = config.ev_connected_topic;
+        doc["socTopic"] = config.ev_soc_topic;
 
         String response;
         serializeJson(doc, response);
@@ -511,6 +565,33 @@ String PowerwallWebServer::getConfigPage() {
             <strong>Note:</strong> Topic prefix should match your pypowerwall MQTT configuration (default: "pypowerwall/").
             Device will automatically reconnect to MQTT broker after saving.
         </div>
+
+        <h2 class="section-title">EV Charger Settings (Optional)</h2>
+        <form id="evForm">
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="evEnabled" name="evEnabled" )rawliteral" + String(mqttConf.ev_enabled ? "checked" : "") + R"rawliteral(>
+                    Enable EV Charger Tracking
+                </label>
+            </div>
+            <div class="form-group">
+                <label for="evPowerTopic">EV Power Topic (required if enabled):</label>
+                <input type="text" id="evPowerTopic" name="evPowerTopic" value=")rawliteral" + mqttConf.ev_power_topic + R"rawliteral(" placeholder="homeassistant/sensor/ev_charger/power">
+            </div>
+            <div class="form-group">
+                <label for="evConnectedTopic">EV Connected Topic (optional):</label>
+                <input type="text" id="evConnectedTopic" name="evConnectedTopic" value=")rawliteral" + mqttConf.ev_connected_topic + R"rawliteral(" placeholder="homeassistant/binary_sensor/ev_connected/state">
+            </div>
+            <div class="form-group">
+                <label for="evSOCTopic">EV Charge Level Topic (optional):</label>
+                <input type="text" id="evSOCTopic" name="evSOCTopic" value=")rawliteral" + mqttConf.ev_soc_topic + R"rawliteral(" placeholder="homeassistant/sensor/ev_battery/state">
+            </div>
+            <button type="submit" class="button">Save EV Settings</button>
+        </form>
+        <div class="status" id="evStatus"></div>
+        <div class="info">
+            <strong>Note:</strong> EV power is assumed to be included in home/load readings. It will be subtracted from the displayed Home value to avoid double-counting. Use full MQTT topic paths (not using the prefix above).
+        </div>
     </div>
     <script>
         // Set current values
@@ -645,6 +726,42 @@ String PowerwallWebServer::getConfigPage() {
                 } else {
                     status.className = 'status error';
                     status.textContent = 'Failed to save MQTT settings';
+                    status.style.display = 'block';
+                }
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+                status.style.display = 'block';
+            }
+        });
+
+        // EV settings form handler
+        document.getElementById('evForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                enabled: document.getElementById('evEnabled').checked,
+                powerTopic: formData.get('evPowerTopic'),
+                connectedTopic: formData.get('evConnectedTopic'),
+                socTopic: formData.get('evSOCTopic')
+            };
+
+            const status = document.getElementById('evStatus');
+
+            try {
+                const response = await fetch('/api/ev', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.textContent = 'EV settings saved successfully!';
+                    status.style.display = 'block';
+                } else {
+                    status.className = 'status error';
+                    status.textContent = 'Failed to save EV settings';
                     status.style.display = 'block';
                 }
             } catch (error) {
