@@ -87,15 +87,21 @@ void updateWifiErrorCountdown(unsigned long next_retry_time) {
         return;
     }
     
+    // If actively connecting, show connecting message instead of countdown
+    if (wifi_connecting) {
+        lv_label_set_text(wifi_countdown_label, "Connecting... (tap to retry)");
+        return;
+    }
+    
     unsigned long now = millis();
-    // Handle millis() overflow by checking if time difference is reasonable
-    // If next_retry_time appears to be in the past but difference is huge, it's likely overflow
-    if (next_retry_time > now || (now - next_retry_time) > WIFI_RECONNECT_DELAY) {
+    // Calculate time until next retry
+    if (next_retry_time > now) {
         unsigned long seconds_remaining = (next_retry_time - now) / 1000;
         char buf[64];
         snprintf(buf, sizeof(buf), "Retrying in %us (tap to retry now)", (unsigned int)seconds_remaining);
         lv_label_set_text(wifi_countdown_label, buf);
     } else {
+        // Time has passed, should retry soon
         lv_label_set_text(wifi_countdown_label, "Retrying... (tap to retry)");
     }
 }
