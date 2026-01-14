@@ -29,6 +29,9 @@ bool wifi_was_connected = false;
 unsigned long wifi_reconnect_attempt_time = 0;
 unsigned long wifi_disconnected_time = 0;
 
+// Async WiFi scan state
+static bool wifi_scan_pending = false;
+
 // Preferences for storing WiFi credentials
 Preferences wifi_preferences;
 
@@ -46,6 +49,35 @@ void setupImprovWiFi() {
 }
 
 void loopImprov() {
+    // Check for async WiFi scan completion
+    if (wifi_scan_pending) {
+        int16_t result = WiFi.scanComplete();
+        if (result >= 0) {
+            // Scan complete - send results
+            for (int i = 0; i < result && i < 10; i++) {
+                String ssid = WiFi.SSID(i);
+                String rssi = String(WiFi.RSSI(i));
+                String auth = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "NO" : "YES";
+
+                std::vector<String> network = {ssid, rssi, auth};
+                sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, network);
+            }
+
+            // Send empty response to signal end of list
+            std::vector<String> empty;
+            sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, empty);
+
+            WiFi.scanDelete();
+            wifi_scan_pending = false;
+        } else if (result == WIFI_SCAN_FAILED) {
+            // Scan failed - send empty response
+            std::vector<String> empty;
+            sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, empty);
+            wifi_scan_pending = false;
+        }
+        // result == WIFI_SCAN_RUNNING: still in progress, continue waiting
+    }
+
     while (Serial.available()) {
         uint8_t b = Serial.read();
 
@@ -126,25 +158,11 @@ static void handleImprovCommand(improv::ImprovCommand cmd) {
         }
 
         case improv::GET_WIFI_NETWORKS: {
-            lv_timer_handler();
-
-            int n = WiFi.scanNetworks();
-
-            // Send each network as a separate RPC response
-            for (int i = 0; i < n && i < 10; i++) {
-                String ssid = WiFi.SSID(i);
-                String rssi = String(WiFi.RSSI(i));
-                String auth = (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? "NO" : "YES";
-
-                std::vector<String> network = {ssid, rssi, auth};
-                sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, network);
+            // Start async WiFi scan - results will be sent from loopImprov()
+            if (!wifi_scan_pending) {
+                WiFi.scanNetworks(true);  // true = async
+                wifi_scan_pending = true;
             }
-
-            // Send empty response to signal end of list
-            std::vector<String> empty;
-            sendImprovRPCResponse(improv::GET_WIFI_NETWORKS, empty);
-
-            WiFi.scanDelete();
             break;
         }
 
