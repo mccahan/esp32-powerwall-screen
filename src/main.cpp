@@ -182,6 +182,8 @@ void setup() {
     mqttClient.setHomeCallback(updateHomeValue);
     mqttClient.setBatteryCallback(updateBatteryValue);
     mqttClient.setSOCCallback(updateSOC);
+    mqttClient.setOffGridCallback(updateOffGridStatus);
+    mqttClient.setTimeRemainingCallback(updateTimeRemaining);
     
     // Initialize MQTT client (will load config from flash)
     mqttClient.begin();

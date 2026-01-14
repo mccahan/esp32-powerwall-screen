@@ -13,6 +13,8 @@ void updateGridValue(float watts);
 void updateHomeValue(float watts);
 void updateBatteryValue(float watts);
 void updateSOC(float soc_percent);
+void updateOffGridStatus(int offgrid);
+void updateTimeRemaining(float hours);
 
 // Animation updates (called from main loop)
 void updateDataRxPulse();
