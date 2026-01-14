@@ -22,6 +22,8 @@ static size_t improv_buffer_pos = 0;
 // WiFi connection state
 bool wifi_connecting = false;
 unsigned long wifi_connect_start = 0;
+bool wifi_was_connected = false;
+unsigned long wifi_reconnect_attempt_time = 0;
 
 // Preferences for storing WiFi credentials
 Preferences wifi_preferences;
@@ -224,54 +226,99 @@ void connectToWiFi(const char* ssid, const char* password) {
 }
 
 void checkWiFiConnection() {
-    if (!wifi_connecting) {
-        return;
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
+    wl_status_t wifi_status = WiFi.status();
+    
+    // Handle WiFi disconnection when it was previously connected
+    if (wifi_was_connected && wifi_status != WL_CONNECTED) {
+        wifi_was_connected = false;
         wifi_connecting = false;
-        improv_state = improv::STATE_PROVISIONED;
-        sendImprovState();
-
-        String ip = getLocalIP();
-        std::vector<String> urls = {"http://" + ip};
-        sendImprovRPCResponse(improv::WIFI_SETTINGS, urls);
-
-        // Stop captive portal if it was running
-        stopCaptivePortal();
-
-        // Start the main web server now that WiFi is connected
-        webServer.begin();
-
-        // Hide boot/error screens
-        hideBootScreen();
-        hideWifiErrorScreen();
-
-        Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
-
-        // Check if MQTT is configured
-        MQTTConfig& mqtt_config = mqttClient.getConfig();
-        if (mqtt_config.host.length() > 0) {
-            // MQTT configured - connect to broker
-            hideMqttConfigScreen();
-            mqttClient.connect();
-        } else {
-            // MQTT not configured - show QR code to config page
-            showMqttConfigScreen(ip.c_str());
-            Serial.println("MQTT not configured - showing config screen");
+        
+        Serial.println("WiFi disconnected! Showing error screen...");
+        
+        // Disconnect MQTT since WiFi is lost
+        mqttClient.disconnect();
+        
+        // Show WiFi error screen
+        showWifiErrorScreen("WiFi connection lost\nRetrying...");
+        
+        // Set up for reconnection attempt
+        wifi_reconnect_attempt_time = millis();
+    }
+    
+    // Handle periodic reconnection attempts when WiFi is not connected
+    if (!wifi_connecting && wifi_status != WL_CONNECTED) {
+        // Check if it's time to retry connection
+        if (millis() - wifi_reconnect_attempt_time >= WIFI_RECONNECT_DELAY) {
+            // Try to reconnect with saved credentials
+            String saved_ssid = "";
+            String saved_pass = "";
+            
+            if (wifi_preferences.begin("wifi", false)) {
+                if (wifi_preferences.isKey("ssid")) {
+                    saved_ssid = wifi_preferences.getString("ssid", "");
+                    saved_pass = wifi_preferences.getString("password", "");
+                }
+                wifi_preferences.end();
+            }
+            
+            if (saved_ssid.length() > 0) {
+                Serial.println("Attempting to reconnect to WiFi...");
+                connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
+            }
         }
     }
-    else if (millis() - wifi_connect_start > WIFI_CONNECT_TIMEOUT) {
-        wifi_connecting = false;
-        improv_state = improv::STATE_AUTHORIZED;
-        sendImprovState();
-        sendImprovError(improv::ERROR_UNABLE_TO_CONNECT);
+    
+    // Handle initial connection attempt
+    if (wifi_connecting) {
+        if (wifi_status == WL_CONNECTED) {
+            wifi_connecting = false;
+            wifi_was_connected = true;
+            improv_state = improv::STATE_PROVISIONED;
+            sendImprovState();
 
-        // Show WiFi error screen
-        hideBootScreen();
-        showWifiErrorScreen("Connection failed\nUse ESP Web Tools to retry");
+            String ip = getLocalIP();
+            std::vector<String> urls = {"http://" + ip};
+            sendImprovRPCResponse(improv::WIFI_SETTINGS, urls);
 
-        Serial.println("WiFi connection timeout");
+            // Stop captive portal if it was running
+            stopCaptivePortal();
+
+            // Start the main web server now that WiFi is connected
+            webServer.begin();
+
+            // Hide boot/error screens
+            hideBootScreen();
+            hideWifiErrorScreen();
+
+            Serial.printf("WiFi connected! IP: %s\n", ip.c_str());
+
+            // Check if MQTT is configured
+            MQTTConfig& mqtt_config = mqttClient.getConfig();
+            if (mqtt_config.host.length() > 0) {
+                // MQTT configured - connect to broker
+                hideMqttConfigScreen();
+                mqttClient.connect();
+            } else {
+                // MQTT not configured - show QR code to config page
+                showMqttConfigScreen(ip.c_str());
+                Serial.println("MQTT not configured - showing config screen");
+            }
+        }
+        else if (millis() - wifi_connect_start > WIFI_CONNECT_TIMEOUT) {
+            wifi_connecting = false;
+            improv_state = improv::STATE_AUTHORIZED;
+            sendImprovState();
+            sendImprovError(improv::ERROR_UNABLE_TO_CONNECT);
+
+            // Show WiFi error screen
+            hideBootScreen();
+            showWifiErrorScreen("Connection failed\nRetrying...");
+
+            Serial.println("WiFi connection timeout");
+            
+            // Set up for reconnection attempt
+            wifi_reconnect_attempt_time = millis();
+        }
     }
 }
 

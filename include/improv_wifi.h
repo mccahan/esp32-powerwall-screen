@@ -7,6 +7,8 @@
 
 // WiFi connection timeout
 #define WIFI_CONNECT_TIMEOUT 30000
+// WiFi reconnection delay (retry every 10 seconds)
+#define WIFI_RECONNECT_DELAY 10000
 
 // Improv WiFi setup and loop
 void setupImprovWiFi();
@@ -20,6 +22,8 @@ String getLocalIP();
 // WiFi connection state
 extern bool wifi_connecting;
 extern unsigned long wifi_connect_start;
+extern bool wifi_was_connected;
+extern unsigned long wifi_reconnect_attempt_time;
 
 // Preferences for storing WiFi credentials
 extern Preferences wifi_preferences;
