@@ -96,8 +96,6 @@ void my_touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
             data->point.y = TFT_HEIGHT - 1 - raw_y;
         }
 
-        // Log touch events for debugging
-        Serial.printf("Touch: x=%d, y=%d\n", data->point.x, data->point.y);
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
@@ -126,8 +124,6 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 void setup() {
     Serial.begin(115200);
     delay(100);
-    // Delay 5s for serial monitor attachment
-    delay(5000);
     Serial.println("\n\nPowerwall Display Starting...");
 
     // Load display configuration (rotation setting)
