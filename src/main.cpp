@@ -14,6 +14,7 @@
 #include "mqtt_config_screen.h"
 #include "improv_wifi.h"
 #include "display_config.h"
+#include "captive_portal.h"
 
 // Touch controller pins for Guition ESP32-S3-4848S040
 #define TOUCH_SDA 19
@@ -169,9 +170,10 @@ void setup() {
     if (saved_ssid.length() > 0) {
         connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
     } else {
-        // No saved credentials - show WiFi error screen after boot
+        // No saved credentials - start captive portal for WiFi setup
         hideBootScreen();
-        showWifiErrorScreen("WiFi not configured\nUse ESP Web Tools to set up");
+        showWifiErrorScreen("WiFi not configured\nConnect to 'Powerwall-Display'\nto set up");
+        startCaptivePortal();
     }
 
     // Setup MQTT callbacks
@@ -183,9 +185,9 @@ void setup() {
     
     // Initialize MQTT client (will load config from flash)
     mqttClient.begin();
-    
-    // Start web server (will be accessible after WiFi connects)
-    webServer.begin();
+
+    // Note: Web server is started after WiFi connects (in checkWiFiConnection)
+    // to avoid port conflict with captive portal
 }
 
 void loop() {
@@ -195,6 +197,7 @@ void loop() {
     last_tick = now;
 
     lv_timer_handler();
+    loopCaptivePortal();
     loopImprov();
     checkWiFiConnection();
     updateDataRxPulse();

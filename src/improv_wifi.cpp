@@ -4,6 +4,8 @@
 #include "wifi_error_screen.h"
 #include "mqtt_config_screen.h"
 #include "mqtt_client.h"
+#include "captive_portal.h"
+#include "web_server.h"
 #include <WiFi.h>
 #include <lvgl.h>
 
@@ -234,6 +236,12 @@ void checkWiFiConnection() {
         String ip = getLocalIP();
         std::vector<String> urls = {ip};
         sendImprovRPCResponse(improv::WIFI_SETTINGS, urls);
+
+        // Stop captive portal if it was running
+        stopCaptivePortal();
+
+        // Start the main web server now that WiFi is connected
+        webServer.begin();
 
         // Hide boot/error screens
         hideBootScreen();
