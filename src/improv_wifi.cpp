@@ -241,7 +241,6 @@ void retryWiFiConnection() {
     if (saved_ssid.length() > 0) {
         Serial.println("Attempting to reconnect to WiFi...");
         connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
-        wifi_reconnect_attempt_time = millis();
     }
 }
 
@@ -270,6 +269,8 @@ void checkWiFiConnection() {
         // Check if it's time to retry connection
         if (millis() - wifi_reconnect_attempt_time >= WIFI_RECONNECT_DELAY) {
             retryWiFiConnection();
+            // Update timestamp after retry attempt to respect the reconnection delay
+            wifi_reconnect_attempt_time = millis();
         }
     }
     

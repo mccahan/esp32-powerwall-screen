@@ -88,10 +88,12 @@ void updateWifiErrorCountdown(unsigned long next_retry_time) {
     }
     
     unsigned long now = millis();
-    if (next_retry_time > now) {
+    // Handle millis() overflow by checking if time difference is reasonable
+    // If next_retry_time appears to be in the past but difference is huge, it's likely overflow
+    if (next_retry_time > now || (now - next_retry_time) > WIFI_RECONNECT_DELAY) {
         unsigned long seconds_remaining = (next_retry_time - now) / 1000;
         char buf[64];
-        snprintf(buf, sizeof(buf), "Retrying in %lus (tap to retry now)", seconds_remaining);
+        snprintf(buf, sizeof(buf), "Retrying in %us (tap to retry now)", (unsigned int)seconds_remaining);
         lv_label_set_text(wifi_countdown_label, buf);
     } else {
         lv_label_set_text(wifi_countdown_label, "Retrying... (tap to retry)");
