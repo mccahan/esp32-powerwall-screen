@@ -15,6 +15,9 @@
 #include "improv_wifi.h"
 #include "display_config.h"
 #include "captive_portal.h"
+#include "brightness_config.h"
+#include "brightness_controller.h"
+#include "time_config.h"
 
 // Touch controller pins for Guition ESP32-S3-4848S040
 #define TOUCH_SDA 19
@@ -73,6 +76,9 @@ void my_touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     if (touchController.isTouched) {
         data->state = LV_INDEV_STATE_PRESSED;
 
+        // Notify brightness controller of touch activity
+        brightnessController.onTouchDetected();
+
         // Raw touch coordinates from GT911
         int16_t raw_x = touchController.points[0].x;
         int16_t raw_y = touchController.points[0].y;
@@ -130,8 +136,15 @@ void setup() {
     Serial.printf("Display rotation: %d degrees\n",
                   DisplayConfigManager::rotationToDegrees(current_rotation));
 
+    // Load brightness configuration
+    brightnessConfig.begin();
+    Serial.println("Brightness configuration loaded");
+
     // Setup display hardware first
     setupDisplay();
+    
+    // Initialize brightness controller (after display setup)
+    brightnessController.begin();
 
     // Initialize LVGL
     setupLVGL();
@@ -175,6 +188,10 @@ void setup() {
         showWifiErrorScreen("WiFi not configured\nConnect to 'Powerwall-Display'\nto set up");
         startCaptivePortal();
     }
+    
+    // Initialize time configuration and sync with NTP (after WiFi)
+    // This will be called again in checkWiFiConnection once WiFi is connected
+    timeConfig.begin();
 
     // Setup MQTT callbacks
     mqttClient.setSolarCallback(updateSolarValue);
@@ -204,6 +221,9 @@ void loop() {
     checkWiFiConnection();
     updateDataRxPulse();
     updatePowerFlowAnimation();
+    
+    // Update brightness controller for time-based and idle dimming
+    brightnessController.update();
 
     // Update info screen data if visible
     if (isInfoScreenVisible()) {
@@ -231,8 +251,8 @@ void setupDisplay() {
     gfx->setRotation(static_cast<uint8_t>(current_rotation));
 
     gfx->fillScreen(BLACK);
-    pinMode(GFX_BL, OUTPUT);
-    digitalWrite(GFX_BL, HIGH);
+    // Note: Backlight PWM is now handled by brightness controller
+    // Don't set it here to avoid conflicts
 }
 
 void setupLVGL() {
