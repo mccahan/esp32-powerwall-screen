@@ -54,6 +54,8 @@ static lv_obj_t *lbl_batt_val = nullptr;
 
 // SOC elements
 static lv_obj_t *lbl_soc = nullptr;
+static lv_obj_t *lbl_soc_offgrid = nullptr;
+static lv_obj_t *lbl_time_remaining = nullptr;
 static lv_obj_t *bar_soc = nullptr;
 
 // Disable overlays for icons
@@ -118,6 +120,8 @@ static float g_batt_w = 0.0f;
 static float g_soc = 0.0f;
 static float ph_master = 0.0f;
 static unsigned long g_last_anim_ms = 0;
+static bool g_offgrid = false;
+static float g_time_remaining = 0.0f;
 
 void createMainDashboard() {
     // Main screen with dark background
@@ -254,6 +258,30 @@ void createMainDashboard() {
     lv_obj_set_pos(lbl_soc, 0, SOC_LABEL_Y);
     lv_obj_set_width(lbl_soc, TFT_WIDTH);
     lv_obj_set_height(lbl_soc, LABEL_HEIGHT_LARGE);
+
+    // ========== Off-Grid SOC Label (left-aligned, hidden by default) ==========
+    lbl_soc_offgrid = lv_label_create(main_screen);
+    lv_label_set_text(lbl_soc_offgrid, "0%");
+    lv_obj_set_style_text_color(lbl_soc_offgrid, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_soc_offgrid, &space_bold_30, 0);
+    lv_obj_set_style_text_align(lbl_soc_offgrid, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_set_pos(lbl_soc_offgrid, 84, SOC_LABEL_Y);
+    lv_obj_set_width(lbl_soc_offgrid, 94);
+    lv_obj_set_height(lbl_soc_offgrid, LABEL_HEIGHT_LARGE);
+    lv_label_set_recolor(lbl_soc_offgrid, true);  // Enable recolor for multi-color text
+    lv_obj_add_flag(lbl_soc_offgrid, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
+
+    // ========== Time Remaining Label (right-aligned, hidden by default) ==========
+    lbl_time_remaining = lv_label_create(main_screen);
+    lv_label_set_text(lbl_time_remaining, "");
+    lv_obj_set_style_text_color(lbl_time_remaining, lv_color_hex(COLOR_WHITE), 0);
+    lv_obj_set_style_text_font(lbl_time_remaining, &space_bold_30, 0);
+    lv_obj_set_style_text_align(lbl_time_remaining, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_pos(lbl_time_remaining, 150, SOC_LABEL_Y);
+    lv_obj_set_width(lbl_time_remaining, 250);
+    lv_obj_set_height(lbl_time_remaining, LABEL_HEIGHT_LARGE);
+    lv_label_set_recolor(lbl_time_remaining, true);  // Enable recolor for multi-color text
+    lv_obj_add_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
 
     // ========== SOC Bar ==========
     bar_soc = lv_bar_create(main_screen);
@@ -460,11 +488,88 @@ void updateSOC(float soc_percent) {
         lv_label_set_text(lbl_soc, buf);
     }
 
+    // Update off-grid label with same value but with gray % symbol
+    if (lbl_soc_offgrid) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "%d#6A6A6A %%#", (int)roundf(adjusted));
+        lv_label_set_text(lbl_soc_offgrid, buf);
+    }
+
     if (bar_soc) {
         lv_bar_set_value(bar_soc, (int)roundf(adjusted), LV_ANIM_OFF);
     }
 
     onDataReceived();
+}
+
+void updateOffGridStatus(int offgrid) {
+    g_offgrid = (offgrid == 1);
+    
+    if (g_offgrid) {
+        // Show off-grid UI elements
+        if (img_grid_offline) {
+            lv_obj_clear_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (lbl_soc_offgrid) {
+            lv_obj_clear_flag(lbl_soc_offgrid, LV_OBJ_FLAG_HIDDEN);
+        }
+        // Show time remaining only if we have a valid value
+        if (lbl_time_remaining && g_time_remaining > 0) {
+            lv_obj_clear_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);
+        }
+        
+        // Hide normal grid label and SOC label
+        if (lbl_soc) {
+            lv_obj_add_flag(lbl_soc, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (lbl_grid_val) {
+            lv_obj_add_flag(lbl_grid_val, LV_OBJ_FLAG_HIDDEN);
+        }
+    } else {
+        // Hide off-grid UI elements
+        if (img_grid_offline) {
+            lv_obj_add_flag(img_grid_offline, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (lbl_soc_offgrid) {
+            lv_obj_add_flag(lbl_soc_offgrid, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (lbl_time_remaining) {
+            lv_obj_add_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);
+        }
+        
+        // Show normal grid label and SOC label
+        if (lbl_soc) {
+            lv_obj_clear_flag(lbl_soc, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (lbl_grid_val) {
+            lv_obj_clear_flag(lbl_grid_val, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    
+    Serial.printf("Off-grid status: %d\n", offgrid);
+}
+
+void updateTimeRemaining(float hours) {
+    g_time_remaining = hours;
+    
+    if (lbl_time_remaining) {
+        if (hours > 0) {
+            char buf[64];
+            // Format: "12.5 #6A6A6A hours#" (hours in gray)
+            snprintf(buf, sizeof(buf), "%.1f #6A6A6A hours#", hours);
+            lv_label_set_text(lbl_time_remaining, buf);
+            
+            // Only show if we're off-grid
+            if (g_offgrid) {
+                lv_obj_clear_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);
+            }
+        } else {
+            // Hide if no time remaining data
+            lv_obj_add_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    
+    Serial.printf("Time remaining: %.1f hours\n", hours);
 }
 
 // ============== Power Flow Dot Animation ==============
