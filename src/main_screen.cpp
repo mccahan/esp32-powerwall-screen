@@ -16,7 +16,7 @@
 #define ICON_WIDTH 70
 #define ICON_HEIGHT 70
 
-// Icon positions
+// Icon positions (default - EV disabled)
 #define SOLAR_ICON_X    205
 #define SOLAR_ICON_Y    31
 #define GRID_ICON_X     77
@@ -27,24 +27,26 @@
 #define BATTERY_ICON_Y  265
 #define CENTER_ICON_X   209
 #define CENTER_ICON_Y   163
-#define EV_ICON_X       340
+#define EV_ICON_X       333
 #define EV_ICON_Y       31
 
-// Animation path centers (icon center positions)
+// Icon positions when EV is enabled (adjusted for spacing)
+#define HOME_ICON_X_EV  333
+#define HOME_ICON_Y_EV  159
+#define EV_ICON_X_EV    333
+#define EV_ICON_Y_EV    31
+
+// Animation path centers (static positions - computed from icon positions)
 #define SOLAR_CENTER_X   (SOLAR_ICON_X + ICON_WIDTH / 2)
 #define SOLAR_CENTER_Y   (SOLAR_ICON_Y + ICON_HEIGHT / 2)
 #define GRID_CENTER_X    (GRID_ICON_X + ICON_WIDTH / 2)
 #define GRID_CENTER_Y    (GRID_ICON_Y + ICON_HEIGHT / 2)
-#define HOME_CENTER_X    (HOME_ICON_X + ICON_WIDTH / 2)
-#define HOME_CENTER_Y    (HOME_ICON_Y + ICON_HEIGHT / 2)
 #define BATTERY_CENTER_X (BATTERY_ICON_X + ICON_WIDTH / 2)
 #define BATTERY_CENTER_Y (BATTERY_ICON_Y + ICON_HEIGHT / 2)
 #define CENTER_X         (CENTER_ICON_X + ICON_WIDTH / 2)
 #define CENTER_Y         (CENTER_ICON_Y + ICON_HEIGHT / 2)
-#define EV_CENTER_X      (EV_ICON_X + ICON_WIDTH / 2)
-#define EV_CENTER_Y      (EV_ICON_Y + ICON_HEIGHT / 2)
 
-// Value label positions
+// Value label positions (default - EV disabled)
 #define BATTERY_VAL_Y 345
 #define SOLAR_VAL_Y (SOLAR_ICON_Y + 80)
 #define GRID_VAL_X 62
@@ -53,6 +55,13 @@
 #define HOME_VAL_X 318
 #define HOME_VAL_Y 240
 #define HOME_VAL_WIDTH 100
+
+// Value label positions when EV is enabled
+#define HOME_VAL_X_EV   318
+#define HOME_VAL_Y_EV   240
+#define EV_VAL_X_EV     318
+#define EV_VAL_Y_EV     (EV_ICON_Y_EV + 80)
+
 #define SOC_LABEL_Y 413
 #define SOC_OFFGRID_X 84
 #define SOC_OFFGRID_WIDTH 94
@@ -182,6 +191,12 @@ static bool g_ev_enabled = false;
 static float g_ev_w = 0.0f;
 static bool g_ev_connected = false;
 static float g_ev_soc = 0.0f;
+
+// Dynamic animation center positions (updated when EV is enabled/disabled)
+static int g_home_center_x = HOME_ICON_X + ICON_WIDTH / 2;
+static int g_home_center_y = HOME_ICON_Y + ICON_HEIGHT / 2;
+static int g_ev_center_x = EV_ICON_X + ICON_WIDTH / 2;
+static int g_ev_center_y = EV_ICON_Y + ICON_HEIGHT / 2;
 
 void createMainDashboard() {
     // Main screen with dark background
@@ -677,19 +692,48 @@ void setEVEnabled(bool enabled) {
     g_ev_enabled = enabled;
 
     if (enabled) {
-        // Show EV elements
-        if (img_ev) lv_obj_clear_flag(img_ev, LV_OBJ_FLAG_HIDDEN);
-        if (lbl_ev_val) lv_obj_clear_flag(lbl_ev_val, LV_OBJ_FLAG_HIDDEN);
+        // Reposition Home icon and label for EV-enabled layout
+        if (img_home) lv_obj_set_pos(img_home, HOME_ICON_X_EV, HOME_ICON_Y_EV);
+        if (lbl_home_val) lv_obj_set_pos(lbl_home_val, HOME_VAL_X_EV, HOME_VAL_Y_EV);
+
+        // Position EV icon and labels for EV-enabled layout
+        if (img_ev) {
+            lv_obj_set_pos(img_ev, EV_ICON_X_EV, EV_ICON_Y_EV);
+            lv_obj_clear_flag(img_ev, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (img_ev_disabled) lv_obj_set_pos(img_ev_disabled, EV_ICON_X_EV, EV_ICON_Y_EV);
+        if (lbl_ev_val) {
+            lv_obj_set_pos(lbl_ev_val, EV_VAL_X_EV, EV_VAL_Y_EV);
+            lv_obj_clear_flag(lbl_ev_val, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (lbl_ev_soc) lv_obj_set_pos(lbl_ev_soc, EV_VAL_X_EV, EV_VAL_Y_EV + LABEL_HEIGHT);
+
+        // Update animation center positions for EV-enabled layout
+        g_home_center_x = HOME_ICON_X_EV + ICON_WIDTH / 2;
+        g_home_center_y = HOME_ICON_Y_EV + ICON_HEIGHT / 2;
+        g_ev_center_x = EV_ICON_X_EV + ICON_WIDTH / 2;
+        g_ev_center_y = EV_ICON_Y_EV + ICON_HEIGHT / 2;
     } else {
+        // Restore Home icon and label to default positions
+        if (img_home) lv_obj_set_pos(img_home, HOME_ICON_X, HOME_ICON_Y);
+        if (lbl_home_val) lv_obj_set_pos(lbl_home_val, HOME_VAL_X, HOME_VAL_Y);
+
         // Hide all EV elements
         if (img_ev) lv_obj_add_flag(img_ev, LV_OBJ_FLAG_HIDDEN);
         if (img_ev_disabled) lv_obj_add_flag(img_ev_disabled, LV_OBJ_FLAG_HIDDEN);
         if (lbl_ev_val) lv_obj_add_flag(lbl_ev_val, LV_OBJ_FLAG_HIDDEN);
         if (lbl_ev_soc) lv_obj_add_flag(lbl_ev_soc, LV_OBJ_FLAG_HIDDEN);
+
         // Hide animation dots
         if (dot_home_ev) lv_obj_add_flag(dot_home_ev, LV_OBJ_FLAG_HIDDEN);
         if (dot_home_ev_2) lv_obj_add_flag(dot_home_ev_2, LV_OBJ_FLAG_HIDDEN);
         if (dot_home_ev_3) lv_obj_add_flag(dot_home_ev_3, LV_OBJ_FLAG_HIDDEN);
+
+        // Restore animation center positions to defaults
+        g_home_center_x = HOME_ICON_X + ICON_WIDTH / 2;
+        g_home_center_y = HOME_ICON_Y + ICON_HEIGHT / 2;
+        g_ev_center_x = EV_ICON_X + ICON_WIDTH / 2;
+        g_ev_center_y = EV_ICON_Y + ICON_HEIGHT / 2;
     }
 }
 
@@ -770,13 +814,15 @@ namespace {
 }
 
 void updatePowerFlowAnimation() {
-    // Geometry - icon center positions (computed from icon positions + half icon size)
+    // Geometry - icon center positions
+    // Static positions use compile-time constants
     const int SX = SOLAR_CENTER_X, SY = SOLAR_CENTER_Y;     // Solar
-    const int HX = HOME_CENTER_X, HY = HOME_CENTER_Y;       // Home
     const int BX = BATTERY_CENTER_X, BY = BATTERY_CENTER_Y; // Battery
     const int GX = GRID_CENTER_X, GY = GRID_CENTER_Y;       // Grid
     const int CX = CENTER_X, CY = CENTER_Y;                 // Center
-    const int EVX = EV_CENTER_X, EVY = EV_CENTER_Y;         // EV
+    // Dynamic positions use runtime variables (updated by setEVEnabled)
+    const int HX = g_home_center_x, HY = g_home_center_y;   // Home
+    const int EVX = g_ev_center_x, EVY = g_ev_center_y;     // EV
 
     const float THRESH_W = 50.0f;
     const float FADE = 0.12f;
