@@ -48,6 +48,10 @@
 // Animation timing constants
 #define ANIMATION_FRAME_MS  33  // ~30 FPS (matches ESPHome 33ms update_interval)
 
+// Buffer sizes for string formatting
+#define BUFFER_SIZE_SMALL   32
+#define BUFFER_SIZE_MEDIUM  64
+
 // UI elements - Main dashboard
 static lv_obj_t *main_screen = nullptr;
 
@@ -495,7 +499,7 @@ void updateSOC(float soc_percent) {
 
     // Update off-grid label with same value but with gray % symbol
     if (lbl_soc_offgrid) {
-        char buf[32];
+        char buf[BUFFER_SIZE_SMALL];
         snprintf(buf, sizeof(buf), "%d#%06X %%#", (int)roundf(adjusted), COLOR_GRAY);
         lv_label_set_text(lbl_soc_offgrid, buf);
     }
@@ -560,7 +564,7 @@ void updateTimeRemaining(float hours) {
     
     if (lbl_time_remaining) {
         if (hours > 0) {
-            char buf[64];
+            char buf[BUFFER_SIZE_MEDIUM];
             // Format: "12.5 #6A6A6A hours#" (hours in gray)
             snprintf(buf, sizeof(buf), "%.1f #%06X hours#", hours, COLOR_GRAY);
             lv_label_set_text(lbl_time_remaining, buf);
