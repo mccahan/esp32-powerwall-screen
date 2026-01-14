@@ -13,7 +13,6 @@
 #define DEVICE_NAME "Powerwall Display"
 #define FIRMWARE_VERSION "1.0.0"
 #define HARDWARE_VARIANT "ESP32-S3-4848S040"
-#define DEVICE_URL "http://{LOCAL_IPV4}/"
 
 // Improv WiFi state
 static improv::State improv_state = improv::STATE_AUTHORIZED;
@@ -109,11 +108,12 @@ static void handleImprovCommand(improv::ImprovCommand cmd) {
         }
 
         case improv::GET_DEVICE_INFO: {
+            String device_url = "http://" + getLocalIP();
             std::vector<String> info = {
                 FIRMWARE_VERSION,
                 DEVICE_NAME,
                 HARDWARE_VARIANT,
-                DEVICE_URL
+                device_url
             };
             sendImprovRPCResponse(improv::GET_DEVICE_INFO, info);
             break;
@@ -234,7 +234,7 @@ void checkWiFiConnection() {
         sendImprovState();
 
         String ip = getLocalIP();
-        std::vector<String> urls = {ip};
+        std::vector<String> urls = {"http://" + ip};
         sendImprovRPCResponse(improv::WIFI_SETTINGS, urls);
 
         // Stop captive portal if it was running
