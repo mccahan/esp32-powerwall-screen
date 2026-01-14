@@ -1,88 +1,42 @@
-# CLAUDE.md
+# Powerwall Display
 
-This ESP32 code powers small displays like the Guition ESP32-S3-4848S040 to show the status and power flow of home energy systems (grid connection, home load, battery, solar). Current values (instantaneous power usage of each component, battery percentage, battery backup time remaining) are pulled through MQTT. Everything that is not display/animation should be done asynchronously or in backend threads whenever possible.
+ESP32-S3 firmware for displaying Tesla Powerwall status on a 480x480 RGB LCD touchscreen.
 
-## Build Commands
+## Hardware
 
-When flashing, ignore the response contents unless the process exits status 1 to save context.
+**Guition ESP32-S3-4848S040** - 4" 480x480 IPS display with capacitive touch
+
+Purchase:
+- [AliExpress](https://www.aliexpress.us/item/3256809197960152.html)
+- [Amazon](https://www.amazon.com/ESP32-S3-Development-Bluetooth-Interaction-Industrial/dp/B0FMK5JTLY)
+
+## Build
 
 ```bash
-# Build firmware
-pio run
-
-# Build and upload via USB
-pio run -t upload
-
-# Monitor serial output (115200 baud)
-pio device monitor
-
-# Clean build
-pio run -t clean
-
-# Manual flash with esptool (if PlatformIO upload fails)
-~/.platformio/packages/tool-esptoolpy/esptool.py \
-  --chip esp32s3 --port /dev/cu.usbserial-10 --baud 460800 \
-  write_flash -z --flash_mode dio --flash_freq 80m --flash_size 16MB \
-  0x0 .pio/build/esp32-s3-devkitc-1/bootloader.bin \
-  0x8000 .pio/build/esp32-s3-devkitc-1/partitions.bin \
-  0xe000 ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
-  0x10000 .pio/build/esp32-s3-devkitc-1/firmware.bin
+pio run              # Build
+pio run -t upload    # Flash via USB
+pio device monitor   # Serial output (115200 baud)
 ```
 
-## Architecture Overview
+## Architecture
 
-ESP32-S3 firmware displaying Tesla Powerwall status on a 480x480 RGB LCD (Guition ESP32-S3-4848S040).
+- **Display**: LVGL 8.x → Arduino_GFX v1.2.9 → ST7701 RGB panel
+- **Data**: AsyncMqttClient subscribes to pypowerwall MQTT topics
+- **Config**: Web UI at `http://powerwall-display.local/config`
+- **WiFi Setup**: Captive portal or Improv Serial (ESP Web Tools)
 
-### Display Pipeline
+## Key Files
 
-```
-LVGL widgets → lv_timer_handler() → my_disp_flush() → Arduino_GFX → ST7701 LCD
-```
+| File | Purpose |
+|------|---------|
+| `main.cpp` | Setup, main loop, display/touch init |
+| `main_screen.cpp` | Power flow dashboard UI |
+| `mqtt_client.cpp` | MQTT connection and topic subscriptions |
+| `web_server.cpp` | Configuration web interface |
+| `improv_wifi.cpp` | WiFi provisioning and connection management |
+| `captive_portal.cpp` | AP mode setup when WiFi not configured |
 
-- **Arduino_GFX v1.2.9** (in `lib/`): Manufacturer's display driver for ST7701 RGB panel
-- **LVGL 8.3.x**: UI framework with 480×200 pixel line buffer (~195KB)
-- **Frame buffer**: Uses PSRAM via `heap_caps_malloc()` for DMA-safe allocation
+## Dependencies
 
-### WiFi Provisioning
-
-Improv Serial protocol enables browser-based WiFi setup via ESP Web Tools:
-- Credentials stored in ESP32 NVS (Preferences library)
-- RPC commands: `WIFI_SETTINGS`, `GET_CURRENT_STATE`, `GET_DEVICE_INFO`, `GET_WIFI_NETWORKS`
-
-### MQTT Data Integration
-
-Asynchronous MQTT client (`mqtt_client.cpp`) subscribes to pypowerwall topics:
-- **AsyncMqttClient**: Non-blocking MQTT operations via background tasks
-- **Configuration**: Stored in NVS, editable via web interface at `http://<device-ip>/config`
-- **Topics**: `{prefix}solar/instant_power`, `battery/instant_power`, `load/instant_power`, etc.
-- **Callbacks**: Direct updates to LVGL UI via registered callback functions
-
-### Web Server
-
-ESPAsyncWebServer (`web_server.cpp`) provides configuration interface:
-- **Port 80**: Accessible at device IP after WiFi connection
-- **Endpoints**: `/config` (UI), `/api/mqtt` (GET/POST for settings)
-- **Storage**: MQTT settings saved to NVS flash
-
-### Key Hardware Configuration
-
-- **Platform**: espressif32@6.8.1 (must use this version for Arduino_GFX v1.2.9 compatibility)
-- **Memory**: Octal PSRAM (OPI mode), 16MB flash (DIO mode)
-- **Display GPIOs**: RGB data (11-15, 0-10, 4-7), Sync (16-18, 21), Backlight (38)
-
-### Power Display Integration Points
-
-Functions in `main.cpp` called by MQTT callbacks:
-```cpp
-updateSolarValue(watts)    // Yellow - from {prefix}solar/instant_power
-updateGridValue(watts)     // Gray - from {prefix}site/instant_power
-updateHomeValue(watts)     // Blue - from {prefix}load/instant_power
-updateBatteryValue(watts)  // Green - from {prefix}battery/instant_power
-updateSOC(percent)         // Battery percentage bar - from {prefix}battery/level
-```
-
-## Critical Dependencies
-
-- `platform = espressif32@6.8.1` - Required for Arduino Core 2.x compatibility with Arduino_GFX
-- `lib/Arduino_GFX/` - Local manufacturer library (do not upgrade to 1.6.x without Arduino Core 3.x)
-- `sdkconfig.defaults` - Octal PSRAM and watchdog timing configuration
+- `platform = espressif32@6.8.1` (required for Arduino_GFX compatibility)
+- `lib/Arduino_GFX/` - Local display driver (do not upgrade without Arduino Core 3.x)
