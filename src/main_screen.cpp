@@ -23,6 +23,10 @@
 #define HOME_VAL_Y 240
 #define HOME_VAL_WIDTH 100
 #define SOC_LABEL_Y 413
+#define SOC_OFFGRID_X 84
+#define SOC_OFFGRID_WIDTH 94
+#define TIME_REMAINING_X 150
+#define TIME_REMAINING_WIDTH 250
 #define SOC_BAR_X 82
 #define SOC_BAR_Y 454
 #define SOC_BAR_WIDTH 316
@@ -39,6 +43,7 @@
 #define COLOR_BATTERY   0x64DD17
 #define COLOR_BAR_BG    0x16181C
 #define COLOR_BAR_FILL  0x22C55E
+#define COLOR_GRAY      0x6A6A6A  // Used for dimmed text in recolor mode
 
 // Animation timing constants
 #define ANIMATION_FRAME_MS  33  // ~30 FPS (matches ESPHome 33ms update_interval)
@@ -265,8 +270,8 @@ void createMainDashboard() {
     lv_obj_set_style_text_color(lbl_soc_offgrid, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_set_style_text_font(lbl_soc_offgrid, &space_bold_30, 0);
     lv_obj_set_style_text_align(lbl_soc_offgrid, LV_TEXT_ALIGN_LEFT, 0);
-    lv_obj_set_pos(lbl_soc_offgrid, 84, SOC_LABEL_Y);
-    lv_obj_set_width(lbl_soc_offgrid, 94);
+    lv_obj_set_pos(lbl_soc_offgrid, SOC_OFFGRID_X, SOC_LABEL_Y);
+    lv_obj_set_width(lbl_soc_offgrid, SOC_OFFGRID_WIDTH);
     lv_obj_set_height(lbl_soc_offgrid, LABEL_HEIGHT_LARGE);
     lv_label_set_recolor(lbl_soc_offgrid, true);  // Enable recolor for multi-color text
     lv_obj_add_flag(lbl_soc_offgrid, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
@@ -277,8 +282,8 @@ void createMainDashboard() {
     lv_obj_set_style_text_color(lbl_time_remaining, lv_color_hex(COLOR_WHITE), 0);
     lv_obj_set_style_text_font(lbl_time_remaining, &space_bold_30, 0);
     lv_obj_set_style_text_align(lbl_time_remaining, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_pos(lbl_time_remaining, 150, SOC_LABEL_Y);
-    lv_obj_set_width(lbl_time_remaining, 250);
+    lv_obj_set_pos(lbl_time_remaining, TIME_REMAINING_X, SOC_LABEL_Y);
+    lv_obj_set_width(lbl_time_remaining, TIME_REMAINING_WIDTH);
     lv_obj_set_height(lbl_time_remaining, LABEL_HEIGHT_LARGE);
     lv_label_set_recolor(lbl_time_remaining, true);  // Enable recolor for multi-color text
     lv_obj_add_flag(lbl_time_remaining, LV_OBJ_FLAG_HIDDEN);  // Hidden by default
@@ -491,7 +496,7 @@ void updateSOC(float soc_percent) {
     // Update off-grid label with same value but with gray % symbol
     if (lbl_soc_offgrid) {
         char buf[32];
-        snprintf(buf, sizeof(buf), "%d#6A6A6A %%#", (int)roundf(adjusted));
+        snprintf(buf, sizeof(buf), "%d#%06X %%#", (int)roundf(adjusted), COLOR_GRAY);
         lv_label_set_text(lbl_soc_offgrid, buf);
     }
 
@@ -556,7 +561,7 @@ void updateTimeRemaining(float hours) {
         if (hours > 0) {
             char buf[64];
             // Format: "12.5 #6A6A6A hours#" (hours in gray)
-            snprintf(buf, sizeof(buf), "%.1f #6A6A6A hours#", hours);
+            snprintf(buf, sizeof(buf), "%.1f #%06X hours#", hours, COLOR_GRAY);
             lv_label_set_text(lbl_time_remaining, buf);
             
             // Only show if we're off-grid
