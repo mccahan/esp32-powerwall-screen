@@ -65,7 +65,7 @@ void PowerwallWebServer::setupRoutes() {
     // API endpoint to get current MQTT configuration
     server.on("/api/mqtt", HTTP_GET, [](AsyncWebServerRequest *request) {
         MQTTConfig& config = mqttClient.getConfig();
-        
+
         StaticJsonDocument<512> doc;
         doc["host"] = config.host;
         doc["port"] = config.port;
@@ -74,7 +74,48 @@ void PowerwallWebServer::setupRoutes() {
         doc["password"] = config.password.length() > 0 ? "********" : "";
         doc["prefix"] = config.topic_prefix;
         doc["connected"] = mqttClient.isConnected();
-        
+
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    // API endpoint to save display configuration
+    server.on("/api/display", HTTP_POST, [](AsyncWebServerRequest *request) {}, NULL,
+        [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
+            if (total > MAX_JSON_PAYLOAD_SIZE) {
+                request->send(413, "application/json", "{\"error\":\"Payload too large\"}");
+                return;
+            }
+
+            StaticJsonDocument<256> doc;
+            DeserializationError error = deserializeJson(doc, data, len);
+
+            if (error) {
+                request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+                return;
+            }
+
+            DisplayConfig& config = displayConfig.getConfig();
+            if (doc.containsKey("rotation")) {
+                int degrees = doc["rotation"].as<int>();
+                config.rotation = DisplayConfigManager::degreesToRotation(degrees);
+            }
+
+            displayConfig.saveConfig();
+
+            // Note: Rotation change requires device restart to take effect
+            request->send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Restart required for rotation change\"}");
+        }
+    );
+
+    // API endpoint to get current display configuration
+    server.on("/api/display", HTTP_GET, [](AsyncWebServerRequest *request) {
+        DisplayConfig& config = displayConfig.getConfig();
+
+        StaticJsonDocument<128> doc;
+        doc["rotation"] = DisplayConfigManager::rotationToDegrees(config.rotation);
+
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -83,14 +124,16 @@ void PowerwallWebServer::setupRoutes() {
 
 String PowerwallWebServer::getConfigPage() {
     MQTTConfig& config = mqttClient.getConfig();
-    
+    DisplayConfig& dispConfig = displayConfig.getConfig();
+    int currentRotation = DisplayConfigManager::rotationToDegrees(dispConfig.rotation);
+
     String html = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MQTT Configuration</title>
+    <title>Powerwall Display Configuration</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -123,7 +166,8 @@ String PowerwallWebServer::getConfigPage() {
         }
         input[type="text"],
         input[type="number"],
-        input[type="password"] {
+        input[type="password"],
+        select {
             width: 100%;
             padding: 10px;
             border: 1px solid #444;
@@ -135,7 +179,8 @@ String PowerwallWebServer::getConfigPage() {
         }
         input[type="text"]:focus,
         input[type="number"]:focus,
-        input[type="password"]:focus {
+        input[type="password"]:focus,
+        select:focus {
             outline: none;
             border-color: #4FC3F7;
         }
@@ -176,11 +221,37 @@ String PowerwallWebServer::getConfigPage() {
             border-radius: 4px;
             font-size: 14px;
         }
+        .section-title {
+            color: #4FC3F7;
+            font-size: 18px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #444;
+        }
+        .section-title:first-of-type {
+            margin-top: 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>⚡ MQTT Configuration</h1>
+        <h1>Powerwall Display</h1>
+
+        <h2 class="section-title">Display Settings</h2>
+        <form id="displayForm">
+            <div class="form-group">
+                <label for="rotation">Screen Rotation:</label>
+                <select id="rotation" name="rotation">
+                    <option value="0">0 (Normal)</option>
+                    <option value="180">180 (Upside Down)</option>
+                </select>
+            </div>
+            <button type="submit" class="button">Save Display Settings</button>
+        </form>
+        <div class="status" id="displayStatus"></div>
+
+        <h2 class="section-title">MQTT Settings</h2>
         <form id="mqttForm">
             <div class="form-group">
                 <label for="host">MQTT Host:</label>
@@ -204,27 +275,62 @@ String PowerwallWebServer::getConfigPage() {
             </div>
             <button type="submit" class="button">Save Configuration</button>
         </form>
-        <div class="status" id="status"></div>
+        <div class="status" id="mqttStatus"></div>
         <div class="info">
             <strong>Note:</strong> Topic prefix should match your pypowerwall MQTT configuration (default: "pypowerwall/").
             Device will automatically reconnect to MQTT broker after saving.
         </div>
     </div>
     <script>
+        // Set current rotation value
+        document.getElementById('rotation').value = ')rawliteral" + String(currentRotation) + R"rawliteral(';
+
+        // Display settings form handler
+        document.getElementById('displayForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = { rotation: parseInt(formData.get('rotation')) };
+
+            const status = document.getElementById('displayStatus');
+
+            try {
+                const response = await fetch('/api/display', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.textContent = 'Display settings saved! Restart the device to apply rotation changes.';
+                    status.style.display = 'block';
+                } else {
+                    status.className = 'status error';
+                    status.textContent = 'Failed to save display settings';
+                    status.style.display = 'block';
+                }
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+                status.style.display = 'block';
+            }
+        });
+
+        // MQTT settings form handler
         document.getElementById('mqttForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(e.target);
             const data = Object.fromEntries(formData.entries());
-            
-            const status = document.getElementById('status');
-            
+
+            const status = document.getElementById('mqttStatus');
+
             try {
                 const response = await fetch('/api/mqtt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-                
+
                 if (response.ok) {
                     status.className = 'status success';
                     status.textContent = 'Configuration saved successfully! Reconnecting to MQTT...';

@@ -13,6 +13,7 @@
 #include "wifi_error_screen.h"
 #include "mqtt_config_screen.h"
 #include "improv_wifi.h"
+#include "display_config.h"
 
 // Touch controller pins for Guition ESP32-S3-4848S040
 #define TOUCH_SDA 19
@@ -61,6 +62,9 @@ static unsigned long last_tick = 0;
 static lv_indev_drv_t indev_drv;
 static lv_indev_t *touch_indev = nullptr;
 
+// Current display rotation (loaded from config)
+static DisplayRotation current_rotation = ROTATION_0;
+
 // Touch read callback for LVGL
 void my_touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     touchController.read();
@@ -68,9 +72,22 @@ void my_touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     if (touchController.isTouched) {
         data->state = LV_INDEV_STATE_PRESSED;
 
-        // Invert coordinates to match screen orientation (origin at top-left)
-        data->point.x = TFT_WIDTH - 1 - touchController.points[0].x;
-        data->point.y = TFT_HEIGHT - 1 - touchController.points[0].y;
+        // Raw touch coordinates from GT911
+        int16_t raw_x = touchController.points[0].x;
+        int16_t raw_y = touchController.points[0].y;
+
+        // Transform coordinates based on display rotation
+        // The GT911 touch panel has origin at bottom-right by default
+        // Note: Only 0° and 180° are supported by ST7701 hardware
+        if (current_rotation == ROTATION_180) {
+            // 180°: no inversion needed (matches GT911 default origin)
+            data->point.x = raw_x;
+            data->point.y = raw_y;
+        } else {
+            // 0° (default): invert both axes
+            data->point.x = TFT_WIDTH - 1 - raw_x;
+            data->point.y = TFT_HEIGHT - 1 - raw_y;
+        }
 
         // Log touch events for debugging
         Serial.printf("Touch: x=%d, y=%d\n", data->point.x, data->point.y);
@@ -105,6 +122,12 @@ void setup() {
     // Delay 5s for serial monitor attachment
     delay(5000);
     Serial.println("\n\nPowerwall Display Starting...");
+
+    // Load display configuration (rotation setting)
+    displayConfig.begin();
+    current_rotation = displayConfig.getConfig().rotation;
+    Serial.printf("Display rotation: %d degrees\n",
+                  DisplayConfigManager::rotationToDegrees(current_rotation));
 
     // Setup display hardware first
     setupDisplay();
@@ -193,6 +216,10 @@ void loop() {
 void setupDisplay() {
     // Lower pixel clock (8MHz) reduces tearing by giving more time between refreshes
     gfx->begin(8000000);
+
+    // Apply display rotation from config
+    gfx->setRotation(static_cast<uint8_t>(current_rotation));
+
     gfx->fillScreen(BLACK);
     pinMode(GFX_BL, OUTPUT);
     digitalWrite(GFX_BL, HIGH);
