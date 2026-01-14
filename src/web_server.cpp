@@ -507,7 +507,9 @@ String PowerwallWebServer::getConfigPage() {
             <button type="submit" class="button">Save Brightness Settings</button>
         </form>
         <div class="status" id="brightnessStatus"></div>
+    </div>
 
+    <div class="container">
         <h2 class="section-title">Time Settings</h2>
         <form id="timeForm">
             <div class="form-group">
@@ -535,7 +537,9 @@ String PowerwallWebServer::getConfigPage() {
             • PST8PDT,M3.2.0,M11.1.0 (US Pacific)<br>
             • UTC0 (UTC, no DST)
         </div>
+    </div>
 
+    <div class="container">
         <h2 class="section-title">MQTT Settings</h2>
         <form id="mqttForm">
             <div class="form-group">
@@ -565,7 +569,9 @@ String PowerwallWebServer::getConfigPage() {
             <strong>Note:</strong> Topic prefix should match your pypowerwall MQTT configuration (default: "pypowerwall/").
             Device will automatically reconnect to MQTT broker after saving.
         </div>
+    </div>
 
+    <div class="container">
         <h2 class="section-title">EV Charger Settings (Optional)</h2>
         <form id="evForm">
             <div class="form-group">

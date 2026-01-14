@@ -86,13 +86,22 @@ void updateWifiErrorCountdown(unsigned long next_retry_time) {
     if (!wifi_countdown_label || !isWifiErrorScreenVisible()) {
         return;
     }
-    
+
+    // If no credentials are saved, hide the retry label entirely
+    if (!hasWifiCredentials()) {
+        lv_obj_add_flag(wifi_countdown_label, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
+    // Show the retry label if credentials exist
+    lv_obj_clear_flag(wifi_countdown_label, LV_OBJ_FLAG_HIDDEN);
+
     // If actively connecting, show connecting message instead of countdown
     if (wifi_connecting) {
         lv_label_set_text(wifi_countdown_label, "Connecting... (tap to retry)");
         return;
     }
-    
+
     unsigned long now = millis();
     // Calculate time until next retry
     // Handle millis() overflow: if next_retry_time < now but the difference is huge,

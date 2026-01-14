@@ -27,6 +27,9 @@ void retryWiFiConnection();
 // Get next WiFi retry time (for countdown display)
 unsigned long getNextWiFiRetryTime();
 
+// Check if WiFi credentials are saved
+bool hasWifiCredentials();
+
 // WiFi connection state
 extern bool wifi_connecting;
 extern unsigned long wifi_connect_start;

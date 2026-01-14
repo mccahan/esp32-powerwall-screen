@@ -179,16 +179,16 @@ void setup() {
 
     if (saved_ssid.length() > 0) {
         connectToWiFi(saved_ssid.c_str(), saved_pass.c_str());
+        // Initialize time configuration and sync with NTP (after WiFi)
+        // This will be called again in checkWiFiConnection once WiFi is connected
+        timeConfig.begin();
     } else {
         // No saved credentials - start captive portal for WiFi setup
         hideBootScreen();
         showWifiErrorScreen("WiFi not configured\nConnect to 'Powerwall-Display'\nto set up");
+        lv_timer_handler();  // Render the screen change immediately
         startCaptivePortal();
     }
-    
-    // Initialize time configuration and sync with NTP (after WiFi)
-    // This will be called again in checkWiFiConnection once WiFi is connected
-    timeConfig.begin();
 
     // Setup MQTT callbacks
     mqttClient.setSolarCallback(updateSolarValue);

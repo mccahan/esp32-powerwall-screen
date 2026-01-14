@@ -410,3 +410,13 @@ unsigned long getNextWiFiRetryTime() {
     }
     return 0;
 }
+
+bool hasWifiCredentials() {
+    bool hasCredentials = false;
+    if (wifi_preferences.begin("wifi", true)) {  // Read-only
+        hasCredentials = wifi_preferences.isKey("ssid") &&
+                         wifi_preferences.getString("ssid", "").length() > 0;
+        wifi_preferences.end();
+    }
+    return hasCredentials;
+}
