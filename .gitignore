@@ -24,6 +24,10 @@ _codeql_detected_source_root
 .DS_Store
 Thumbs.db
 
+# Local library patches (keep only modified files)
+lib/TAMC_GT911/*
+!lib/TAMC_GT911/TAMC_GT911.cpp
+
 # Python
 __pycache__/
 *.py[cod]
