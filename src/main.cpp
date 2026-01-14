@@ -215,6 +215,7 @@ void loop() {
     loopCaptivePortal();
     loopImprov();
     checkWiFiConnection();
+    mqttClient.loop();  // Handle MQTT auto-reconnect
     updateDataRxPulse();
     updatePowerFlowAnimation();
     

@@ -7,6 +7,8 @@
 
 // Constants
 #define MAX_MQTT_MESSAGE_SIZE 64
+#define MQTT_RECONNECT_MIN_DELAY 1000    // Start with 1 second
+#define MQTT_RECONNECT_MAX_DELAY 60000   // Max 60 seconds
 
 // MQTT Configuration structure
 struct MQTTConfig {
@@ -23,9 +25,10 @@ public:
     PowerwallMQTTClient();
     
     void begin();
+    void loop();  // Call from main loop for auto-reconnect
     void loadConfig();
     void saveConfig();
-    
+
     bool isConnected();
     MQTTConfig& getConfig();
     void disconnect();
@@ -44,6 +47,11 @@ private:
     AsyncMqttClient mqtt_client;
     MQTTConfig config;
     Preferences preferences;
+
+    // Auto-reconnect state
+    bool reconnect_enabled;
+    unsigned long last_reconnect_attempt;
+    unsigned long reconnect_delay;
     
     // Callbacks for data updates
     void (*solarCallback)(float);

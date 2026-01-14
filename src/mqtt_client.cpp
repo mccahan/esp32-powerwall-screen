@@ -7,12 +7,13 @@ PowerwallMQTTClient* PowerwallMQTTClient::instance = nullptr;
 // Global instance
 PowerwallMQTTClient mqttClient;
 
-PowerwallMQTTClient::PowerwallMQTTClient() 
+PowerwallMQTTClient::PowerwallMQTTClient()
     : solarCallback(nullptr), gridCallback(nullptr), homeCallback(nullptr),
       batteryCallback(nullptr), socCallback(nullptr), offGridCallback(nullptr),
-      timeRemainingCallback(nullptr) {
+      timeRemainingCallback(nullptr), reconnect_enabled(false),
+      last_reconnect_attempt(0), reconnect_delay(MQTT_RECONNECT_MIN_DELAY) {
     instance = this;
-    
+
     // Set up async MQTT callbacks
     mqtt_client.onConnect(onMqttConnectStatic);
     mqtt_client.onDisconnect(onMqttDisconnectStatic);
@@ -33,6 +34,28 @@ void PowerwallMQTTClient::begin() {
         Serial.printf("MQTT client initialized - Server: %s:%d (waiting for WiFi)\n", config.host.c_str(), config.port);
     } else {
         Serial.println("MQTT not configured - skipping initialization");
+    }
+}
+
+void PowerwallMQTTClient::loop() {
+    // Handle auto-reconnect with exponential backoff
+    if (!reconnect_enabled || mqtt_client.connected()) {
+        return;
+    }
+
+    if (WiFi.status() != WL_CONNECTED || config.host.length() == 0) {
+        return;
+    }
+
+    unsigned long now = millis();
+    if (now - last_reconnect_attempt >= reconnect_delay) {
+        last_reconnect_attempt = now;
+
+        Serial.printf("Attempting MQTT reconnect (delay: %lums)...\n", reconnect_delay);
+        mqtt_client.connect();
+
+        // Exponential backoff: double delay up to max
+        reconnect_delay = min(reconnect_delay * 2, (unsigned long)MQTT_RECONNECT_MAX_DELAY);
     }
 }
 
@@ -96,6 +119,7 @@ MQTTConfig& PowerwallMQTTClient::getConfig() {
 }
 
 void PowerwallMQTTClient::disconnect() {
+    reconnect_enabled = false;  // Disable auto-reconnect on explicit disconnect
     mqtt_client.disconnect();
 }
 
@@ -170,6 +194,10 @@ void PowerwallMQTTClient::onMqttMessageStatic(char* topic, char* payload, AsyncM
 // Instance methods
 void PowerwallMQTTClient::onMqttConnect(bool sessionPresent) {
     Serial.println("✓ Connected to MQTT broker");
+
+    // Reset reconnect state on successful connection
+    reconnect_enabled = true;  // Enable auto-reconnect for future disconnects
+    reconnect_delay = MQTT_RECONNECT_MIN_DELAY;  // Reset backoff
     
     // Subscribe to all pypowerwall topics
     String prefix = config.topic_prefix;
@@ -211,10 +239,11 @@ void PowerwallMQTTClient::onMqttDisconnect(AsyncMqttClientDisconnectReason reaso
             break;
     }
     
-    // AsyncMqttClient has auto-reconnect, but only if WiFi is still connected
-    // We'll attempt manual reconnection after a delay
+    // Enable auto-reconnect if WiFi is still connected
     if (WiFi.status() == WL_CONNECTED && config.host.length() > 0) {
-        Serial.println("Will attempt to reconnect to MQTT in 5 seconds...");
+        reconnect_enabled = true;
+        last_reconnect_attempt = millis();  // Start backoff timer
+        Serial.printf("Will attempt to reconnect in %lums...\n", reconnect_delay);
     }
 }
 
