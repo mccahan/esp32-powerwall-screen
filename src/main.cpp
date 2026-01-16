@@ -19,6 +19,7 @@
 #include "brightness_config.h"
 #include "brightness_controller.h"
 #include "time_config.h"
+#include "screenshot.h"
 
 // Touch controller pins for Guition ESP32-S3-4848S040
 #define TOUCH_SDA 19
@@ -136,6 +137,9 @@ void setup() {
     // Load brightness configuration
     brightnessConfig.begin();
     Serial.println("Brightness configuration loaded");
+
+    // Initialize screenshot storage
+    initScreenshot();
 
     // Setup display hardware first
     setupDisplay();

@@ -278,6 +278,34 @@ void PowerwallWebServer::setupRoutes() {
         serializeJson(doc, response);
         request->send(200, "application/json", response);
     });
+
+    // Screenshot capture endpoint
+    server.on("/api/screenshot/capture", HTTP_POST, [](AsyncWebServerRequest *request) {
+        if (captureScreenshot()) {
+            request->send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Screenshot captured\"}");
+        } else {
+            request->send(500, "application/json", "{\"error\":\"Failed to capture screenshot\"}");
+        }
+    });
+
+    // Screenshot download endpoint
+    server.on("/api/screenshot/download", HTTP_GET, [](AsyncWebServerRequest *request) {
+        if (hasScreenshot()) {
+            request->send(SPIFFS, getScreenshotPath(), "image/bmp", true);
+        } else {
+            request->send(404, "application/json", "{\"error\":\"No screenshot available\"}");
+        }
+    });
+
+    // Screenshot status endpoint
+    server.on("/api/screenshot/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+        StaticJsonDocument<128> doc;
+        doc["available"] = hasScreenshot();
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
 }
 
 String PowerwallWebServer::getConfigPage() {
@@ -599,6 +627,20 @@ String PowerwallWebServer::getConfigPage() {
             <strong>Note:</strong> EV power is assumed to be included in home/load readings. It will be subtracted from the displayed Home value to avoid double-counting. Use full MQTT topic paths (not using the prefix above).
         </div>
     </div>
+
+    <div class="container">
+        <h2 class="section-title">Screenshot</h2>
+        <div class="form-group">
+            <button type="button" class="button" id="captureScreenshot">Capture Screenshot</button>
+        </div>
+        <div class="form-group">
+            <button type="button" class="button" id="downloadScreenshot" style="display:none;">Download Screenshot</button>
+        </div>
+        <div class="status" id="screenshotStatus"></div>
+        <div class="info">
+            <strong>Info:</strong> Captures the current display as a BMP image file for documentation or troubleshooting.
+        </div>
+    </div>
     <script>
         // Set current values
         document.getElementById('rotation').value = ')rawliteral" + String(currentRotation) + R"rawliteral(';
@@ -776,6 +818,53 @@ String PowerwallWebServer::getConfigPage() {
                 status.style.display = 'block';
             }
         });
+
+        // Screenshot capture handler
+        document.getElementById('captureScreenshot').addEventListener('click', async () => {
+            const status = document.getElementById('screenshotStatus');
+            const captureBtn = document.getElementById('captureScreenshot');
+            const downloadBtn = document.getElementById('downloadScreenshot');
+
+            captureBtn.disabled = true;
+            status.className = 'status';
+            status.textContent = 'Capturing screenshot...';
+            status.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/screenshot/capture', {
+                    method: 'POST'
+                });
+
+                if (response.ok) {
+                    status.className = 'status success';
+                    status.textContent = 'Screenshot captured successfully!';
+                    downloadBtn.style.display = 'block';
+                } else {
+                    status.className = 'status error';
+                    status.textContent = 'Failed to capture screenshot';
+                }
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+
+            captureBtn.disabled = false;
+        });
+
+        // Screenshot download handler
+        document.getElementById('downloadScreenshot').addEventListener('click', () => {
+            window.location.href = '/api/screenshot/download';
+        });
+
+        // Check if screenshot exists on page load
+        fetch('/api/screenshot/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.available) {
+                    document.getElementById('downloadScreenshot').style.display = 'block';
+                }
+            })
+            .catch(error => console.log('Could not check screenshot status:', error));
     </script>
 </body>
 </html>
