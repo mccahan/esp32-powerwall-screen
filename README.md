@@ -88,7 +88,22 @@ topic = pypowerwall
 Access `http://powerwall-display.local/config` to configure:
 
 - **Display Rotation**: 0° or 180° (requires reboot)
+- **Brightness Settings**: Day/night brightness with automatic dimming
+- **Time Settings**: NTP server and timezone configuration
 - **MQTT Settings**: Broker connection details
+- **EV Charger Settings** (Optional): Track electric vehicle charging power
+- **Screenshot**: Capture the current display as BMP image
+
+### Taking Screenshots
+
+The web interface includes a screenshot feature useful for documentation or troubleshooting:
+
+1. Open `http://powerwall-display.local/config`
+2. Scroll to the **Screenshot** section
+3. Click **Capture Screenshot** to capture the current display
+4. Click **Download Screenshot** to save the BMP image to your computer
+
+Screenshots are saved in 24-bit BMP format at the native 480x480 resolution.
 
 ## Troubleshooting
 
