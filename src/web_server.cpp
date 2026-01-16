@@ -1,6 +1,7 @@
 #include "web_server.h"
 #include "main_screen.h"
 #include <ArduinoJson.h>
+#include <SPIFFS.h>
 
 // Global instance
 PowerwallWebServer webServer;
