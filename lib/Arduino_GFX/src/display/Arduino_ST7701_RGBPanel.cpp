@@ -300,7 +300,25 @@ void Arduino_ST7701_RGBPanel::setRotation(uint8_t r)
   switch (_rotation)
   {
   case 1:
-    // not implemented
+    // 90 degrees clockwise
+    // Y direction
+    _bus->writeCommand(0xFF);
+    _bus->write(0x77);
+    _bus->write(0x01);
+    _bus->write(0x00);
+    _bus->write(0x00);
+    _bus->write(0x10);
+    _bus->writeCommand(0xC7);
+    _bus->write(0x00);
+    // X Direction and color order (MV=1, MX=0, MY=1)
+    _bus->writeCommand(0xFF);
+    _bus->write(0x77);
+    _bus->write(0x01);
+    _bus->write(0x00);
+    _bus->write(0x00);
+    _bus->write(0x00);
+    _bus->writeCommand(0x36);
+    _bus->write(_bgr ? 0x60 : 0x68);
     break;
   case 2:
     // Y direction
@@ -323,7 +341,25 @@ void Arduino_ST7701_RGBPanel::setRotation(uint8_t r)
     _bus->write(_bgr ? 0x10 : 0x18);
     break;
   case 3:
-    // not implemented
+    // 270 degrees clockwise (90 counter-clockwise)
+    // Y direction
+    _bus->writeCommand(0xFF);
+    _bus->write(0x77);
+    _bus->write(0x01);
+    _bus->write(0x00);
+    _bus->write(0x00);
+    _bus->write(0x10);
+    _bus->writeCommand(0xC7);
+    _bus->write(0x04);
+    // X Direction and color order (MV=1, MX=1, MY=0)
+    _bus->writeCommand(0xFF);
+    _bus->write(0x77);
+    _bus->write(0x01);
+    _bus->write(0x00);
+    _bus->write(0x00);
+    _bus->write(0x00);
+    _bus->writeCommand(0x36);
+    _bus->write(_bgr ? 0x20 : 0x28);
     break;
   default: // case 0:
     // Y direction

@@ -86,15 +86,27 @@ void my_touchpad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
 
         // Transform coordinates based on display rotation
         // The GT911 touch panel has origin at bottom-right by default
-        // Note: Only 0° and 180° are supported by ST7701 hardware
-        if (current_rotation == ROTATION_180) {
-            // 180°: no inversion needed (matches GT911 default origin)
-            data->point.x = raw_x;
-            data->point.y = raw_y;
-        } else {
-            // 0° (default): invert both axes
-            data->point.x = TFT_WIDTH - 1 - raw_x;
-            data->point.y = TFT_HEIGHT - 1 - raw_y;
+        switch (current_rotation) {
+            case ROTATION_0:
+                // 0° (default): invert both axes
+                data->point.x = TFT_WIDTH - 1 - raw_x;
+                data->point.y = TFT_HEIGHT - 1 - raw_y;
+                break;
+            case ROTATION_90:
+                // 90° clockwise: swap and invert x
+                data->point.x = TFT_WIDTH - 1 - raw_y;
+                data->point.y = raw_x;
+                break;
+            case ROTATION_180:
+                // 180°: no inversion needed (matches GT911 default origin)
+                data->point.x = raw_x;
+                data->point.y = raw_y;
+                break;
+            case ROTATION_270:
+                // 270° clockwise (90° counter-clockwise): swap and invert y
+                data->point.x = raw_y;
+                data->point.y = TFT_HEIGHT - 1 - raw_x;
+                break;
         }
 
     } else {

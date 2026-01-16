@@ -87,7 +87,7 @@ topic = pypowerwall
 
 Access `http://powerwall-display.local/config` to configure:
 
-- **Display Rotation**: 0° or 180° (requires reboot)
+- **Display Rotation**: 0°, 90°, 180°, or 270° (requires reboot)
 - **MQTT Settings**: Broker connection details
 
 ## Troubleshooting

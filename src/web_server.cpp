@@ -452,8 +452,10 @@ String PowerwallWebServer::getConfigPage() {
             <div class="form-group">
                 <label for="rotation">Screen Rotation:</label>
                 <select id="rotation" name="rotation">
-                    <option value="0">0 (Normal)</option>
-                    <option value="180">180 (Upside Down)</option>
+                    <option value="0">0° (Normal)</option>
+                    <option value="90">90° (Clockwise)</option>
+                    <option value="180">180° (Upside Down)</option>
+                    <option value="270">270° (Counter-Clockwise)</option>
                 </select>
             </div>
             <button type="submit" class="button">Save Display Settings</button>
