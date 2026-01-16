@@ -103,7 +103,7 @@ The web interface includes a screenshot feature useful for documentation or trou
 3. Click **Capture Screenshot** to capture the current display
 4. Click **Download Screenshot** to save the BMP image to your computer
 
-Screenshots are saved in 24-bit BMP format at the native 480x480 resolution.
+Screenshots are captured in 24-bit BMP format at the native 480x480 resolution (~692KB) and stored temporarily in PSRAM.
 
 ## Troubleshooting
 

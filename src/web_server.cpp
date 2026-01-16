@@ -1,7 +1,6 @@
 #include "web_server.h"
 #include "main_screen.h"
 #include <ArduinoJson.h>
-#include <SPIFFS.h>
 
 // Global instance
 PowerwallWebServer webServer;
@@ -292,7 +291,27 @@ void PowerwallWebServer::setupRoutes() {
     // Screenshot download endpoint
     server.on("/api/screenshot/download", HTTP_GET, [](AsyncWebServerRequest *request) {
         if (hasScreenshot()) {
-            request->send(SPIFFS, getScreenshotPath(), "image/bmp", true);
+            // Send screenshot data from PSRAM buffer
+            AsyncWebServerResponse *response = request->beginResponse(
+                "image/bmp",
+                getScreenshotSize(),
+                [](uint8_t *buffer, size_t maxLen, size_t index) -> size_t {
+                    const uint8_t* screenshot_data = getScreenshotData();
+                    size_t screenshot_size = getScreenshotSize();
+                    
+                    if (index >= screenshot_size) {
+                        return 0;
+                    }
+                    
+                    size_t remaining = screenshot_size - index;
+                    size_t to_send = (remaining < maxLen) ? remaining : maxLen;
+                    
+                    memcpy(buffer, screenshot_data + index, to_send);
+                    return to_send;
+                }
+            );
+            response->addHeader("Content-Disposition", "attachment; filename=\"screenshot.bmp\"");
+            request->send(response);
         } else {
             request->send(404, "application/json", "{\"error\":\"No screenshot available\"}");
         }

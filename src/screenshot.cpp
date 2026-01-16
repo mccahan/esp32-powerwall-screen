@@ -1,8 +1,6 @@
 #include "screenshot.h"
-#include <SPIFFS.h>
 #include <lvgl.h>
 
-#define SCREENSHOT_PATH "/screenshot.bmp"
 #define SCREEN_WIDTH 480
 #define SCREEN_HEIGHT 480
 
@@ -31,12 +29,25 @@ typedef struct {
 } BMPInfoHeader;
 #pragma pack(pop)
 
+// Global buffer to store screenshot in PSRAM
+static uint8_t* screenshot_buffer = nullptr;
+static size_t screenshot_size = 0;
+static bool screenshot_available = false;
+
 void initScreenshot() {
-    if (!SPIFFS.begin(true)) {
-        Serial.println("Failed to mount SPIFFS");
-        return;
+    // Calculate required buffer size for BMP
+    uint32_t row_size = ((SCREEN_WIDTH * 3 + 3) / 4) * 4;
+    uint32_t image_size = row_size * SCREEN_HEIGHT;
+    size_t total_size = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader) + image_size;
+    
+    // Allocate buffer in PSRAM
+    screenshot_buffer = (uint8_t*)heap_caps_malloc(total_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    
+    if (screenshot_buffer) {
+        Serial.printf("Screenshot buffer allocated: %u bytes in PSRAM\n", total_size);
+    } else {
+        Serial.println("Failed to allocate screenshot buffer in PSRAM");
     }
-    Serial.println("SPIFFS mounted successfully");
 }
 
 // Convert RGB565 to RGB888 (24-bit BMP)
@@ -48,6 +59,11 @@ void rgb565_to_rgb888(uint16_t rgb565, uint8_t* r, uint8_t* g, uint8_t* b) {
 
 bool captureScreenshot() {
     Serial.println("Capturing screenshot...");
+    
+    if (!screenshot_buffer) {
+        Serial.println("Screenshot buffer not initialized");
+        return false;
+    }
     
     // Get LVGL display and screen buffer
     lv_disp_t* disp = lv_disp_get_default();
@@ -76,29 +92,21 @@ bool captureScreenshot() {
     
     lv_color_t* buf = (lv_color_t*)draw_buf->buf_act;
     
-    // Delete old screenshot if exists
-    if (SPIFFS.exists(SCREENSHOT_PATH)) {
-        SPIFFS.remove(SCREENSHOT_PATH);
-    }
-    
-    // Create BMP file
-    File file = SPIFFS.open(SCREENSHOT_PATH, FILE_WRITE);
-    if (!file) {
-        Serial.println("Failed to create screenshot file");
-        return false;
-    }
-    
     // Calculate sizes
     uint32_t row_size = ((SCREEN_WIDTH * 3 + 3) / 4) * 4;  // BMP rows must be multiple of 4 bytes
     uint32_t image_size = row_size * SCREEN_HEIGHT;
     uint32_t file_size = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader) + image_size;
+    
+    screenshot_size = file_size;
+    uint8_t* write_ptr = screenshot_buffer;
     
     // Write BMP file header
     BMPFileHeader file_header = {0};
     file_header.signature = 0x4D42;  // "BM"
     file_header.file_size = file_size;
     file_header.data_offset = sizeof(BMPFileHeader) + sizeof(BMPInfoHeader);
-    file.write((uint8_t*)&file_header, sizeof(BMPFileHeader));
+    memcpy(write_ptr, &file_header, sizeof(BMPFileHeader));
+    write_ptr += sizeof(BMPFileHeader);
     
     // Write BMP info header
     BMPInfoHeader info_header = {0};
@@ -109,21 +117,11 @@ bool captureScreenshot() {
     info_header.bits_per_pixel = 24;
     info_header.compression = 0;  // No compression
     info_header.image_size = image_size;
-    file.write((uint8_t*)&info_header, sizeof(BMPInfoHeader));
+    memcpy(write_ptr, &info_header, sizeof(BMPInfoHeader));
+    write_ptr += sizeof(BMPInfoHeader);
     
     // Write pixel data (BMP is bottom-up, so write rows in reverse)
-    uint8_t* row_buffer = (uint8_t*)malloc(row_size);
-    if (!row_buffer) {
-        Serial.println("Failed to allocate row buffer");
-        file.close();
-        // Clean up incomplete file
-        SPIFFS.remove(SCREENSHOT_PATH);
-        return false;
-    }
-    
     for (int y = SCREEN_HEIGHT - 1; y >= 0; y--) {
-        memset(row_buffer, 0, row_size);
-        
         for (int x = 0; x < SCREEN_WIDTH; x++) {
             int pixel_index = y * SCREEN_WIDTH + x;
             uint16_t rgb565 = buf[pixel_index].full;
@@ -132,31 +130,36 @@ bool captureScreenshot() {
             rgb565_to_rgb888(rgb565, &r, &g, &b);
             
             // BMP uses BGR order
-            row_buffer[x * 3 + 0] = b;
-            row_buffer[x * 3 + 1] = g;
-            row_buffer[x * 3 + 2] = r;
+            *write_ptr++ = b;
+            *write_ptr++ = g;
+            *write_ptr++ = r;
         }
         
-        file.write(row_buffer, row_size);
+        // Add padding to make row size multiple of 4
+        int padding = row_size - (SCREEN_WIDTH * 3);
+        for (int p = 0; p < padding; p++) {
+            *write_ptr++ = 0;
+        }
     }
     
-    free(row_buffer);
-    file.close();
-    
-    Serial.printf("Screenshot saved: %d bytes\n", file_size);
+    screenshot_available = true;
+    Serial.printf("Screenshot captured: %u bytes\n", file_size);
     return true;
 }
 
-String getScreenshotPath() {
-    return String(SCREENSHOT_PATH);
+const uint8_t* getScreenshotData() {
+    return screenshot_buffer;
+}
+
+size_t getScreenshotSize() {
+    return screenshot_size;
 }
 
 bool hasScreenshot() {
-    return SPIFFS.exists(SCREENSHOT_PATH);
+    return screenshot_available && screenshot_buffer != nullptr;
 }
 
 void deleteScreenshot() {
-    if (SPIFFS.exists(SCREENSHOT_PATH)) {
-        SPIFFS.remove(SCREENSHOT_PATH);
-    }
+    screenshot_available = false;
+    screenshot_size = 0;
 }

@@ -3,19 +3,22 @@
 
 #include <Arduino.h>
 
-// Initialize screenshot storage
+// Initialize screenshot storage in PSRAM
 void initScreenshot();
 
-// Capture screenshot from LVGL framebuffer and save to SPIFFS
+// Capture screenshot from LVGL framebuffer and save to PSRAM buffer
 bool captureScreenshot();
 
-// Get path to latest screenshot file
-String getScreenshotPath();
+// Get pointer to screenshot data in PSRAM
+const uint8_t* getScreenshotData();
 
-// Check if screenshot exists
+// Get size of screenshot data
+size_t getScreenshotSize();
+
+// Check if screenshot exists in buffer
 bool hasScreenshot();
 
-// Delete screenshot file
+// Mark screenshot as deleted (doesn't free memory, just marks as invalid)
 void deleteScreenshot();
 
 #endif // SCREENSHOT_H
