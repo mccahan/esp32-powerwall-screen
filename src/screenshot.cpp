@@ -71,12 +71,8 @@ bool captureScreenshot() {
         Serial.println("No display found");
         return false;
     }
-
-    // Force LVGL to render everything
-    lv_obj_invalidate(lv_scr_act());
-    lv_refr_now(disp);
     
-    // Get the active draw buffer
+    // Get the active draw buffer (contains current display state)
     lv_disp_draw_buf_t* draw_buf = lv_disp_get_draw_buf(disp);
     if (!draw_buf || !draw_buf->buf_act) {
         Serial.println("No active buffer");
