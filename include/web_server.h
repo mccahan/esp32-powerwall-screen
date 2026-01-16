@@ -7,6 +7,7 @@
 #include "display_config.h"
 #include "brightness_config.h"
 #include "time_config.h"
+#include "screenshot.h"
 
 // Constants
 #define MAX_JSON_PAYLOAD_SIZE 1024
