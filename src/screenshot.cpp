@@ -67,6 +67,13 @@ bool captureScreenshot() {
         return false;
     }
     
+    // Validate buffer size
+    uint32_t expected_size = SCREEN_WIDTH * SCREEN_HEIGHT;
+    if (draw_buf->size < expected_size) {
+        Serial.printf("Buffer too small: %u < %u\n", draw_buf->size, expected_size);
+        return false;
+    }
+    
     lv_color_t* buf = (lv_color_t*)draw_buf->buf_act;
     
     // Delete old screenshot if exists
@@ -109,6 +116,8 @@ bool captureScreenshot() {
     if (!row_buffer) {
         Serial.println("Failed to allocate row buffer");
         file.close();
+        // Clean up incomplete file
+        SPIFFS.remove(SCREENSHOT_PATH);
         return false;
     }
     
