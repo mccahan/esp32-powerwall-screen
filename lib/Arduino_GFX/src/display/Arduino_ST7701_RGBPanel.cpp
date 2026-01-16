@@ -311,7 +311,7 @@ void Arduino_ST7701_RGBPanel::setRotation(uint8_t r)
     _bus->writeCommand(0xC7);
     _bus->write(0x00);
     // X Direction and color order (MV=1, MX=1, MY=0)
-    // MADCTL: 0x60 (BGR) or 0x68 (RGB) = MX(bit6=0x40) + MV(bit5=0x20) + RGB(bit3=0x08 if set)
+    // MADCTL: MX(bit6=0x40) + MV(bit5=0x20) = 0x60 (BGR), or 0x60 + RGB(bit3=0x08) = 0x68 (RGB)
     _bus->writeCommand(0xFF);
     _bus->write(0x77);
     _bus->write(0x01);
@@ -353,7 +353,7 @@ void Arduino_ST7701_RGBPanel::setRotation(uint8_t r)
     _bus->writeCommand(0xC7);
     _bus->write(0x04);
     // X Direction and color order (MV=1, MX=0, MY=0)
-    // MADCTL: 0x20 (BGR) or 0x28 (RGB) = MV(bit5=0x20) + RGB(bit3=0x08 if set)
+    // MADCTL: MV(bit5=0x20) = 0x20 (BGR), or 0x20 + RGB(bit3=0x08) = 0x28 (RGB)
     _bus->writeCommand(0xFF);
     _bus->write(0x77);
     _bus->write(0x01);
