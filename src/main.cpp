@@ -19,6 +19,7 @@
 #include "brightness_config.h"
 #include "brightness_controller.h"
 #include "time_config.h"
+#include "loading_screen.h"
 
 // Touch controller pins for Guition ESP32-S3-4848S040
 #define TOUCH_SDA 19
@@ -53,6 +54,14 @@ Arduino_ST7701_RGBPanel *gfx = new Arduino_ST7701_RGBPanel(
 // Display dimensions
 #define TFT_WIDTH 480
 #define TFT_HEIGHT 480
+
+// Data timeout configuration
+#define DATA_TIMEOUT_MS 60000  // 60 seconds - show loading screen if no data received
+#define DATA_RECOVERY_MS 5000  // 5 seconds - hide loading screen after consistent data flow
+
+// Loading screen state tracking
+static bool loading_screen_shown = false;
+static unsigned long loading_screen_hide_time = 0;
 
 // LVGL display buffers (double buffered)
 static lv_disp_draw_buf_t draw_buf;
@@ -247,6 +256,33 @@ void loop() {
             hideBootScreen();
         }
     }
+
+    // Check for data timeout (show loading screen if no data for >60 seconds)
+    // Only check if we're not showing boot screen, wifi error, info, or MQTT config screens
+    if (!isBootScreenVisible() && !isWifiErrorScreenVisible() && !isInfoScreenVisible() && !isMqttConfigScreenVisible()) {
+        // Show loading screen if no data received for more than DATA_TIMEOUT_MS
+        if (last_data_ms > 0 && (now - last_data_ms > DATA_TIMEOUT_MS)) {
+            if (!loading_screen_shown) {
+                showLoadingScreen();
+                loading_screen_shown = true;
+            }
+        } else if (loading_screen_shown) {
+            // Hide loading screen only after consistent data flow (DATA_RECOVERY_MS)
+            // This prevents flickering when data is intermittent
+            if (loading_screen_hide_time == 0) {
+                // Start the recovery timer when data first arrives
+                loading_screen_hide_time = now;
+            } else if (now - loading_screen_hide_time > DATA_RECOVERY_MS) {
+                // Data has been flowing consistently, safe to hide
+                hideLoadingScreen();
+                loading_screen_shown = false;
+                loading_screen_hide_time = 0;
+            }
+        } else {
+            // Reset hide timer if we're not in loading screen mode
+            loading_screen_hide_time = 0;
+        }
+    }
 }
 
 void setupDisplay() {
@@ -317,4 +353,5 @@ void createUI() {
     createMqttConfigScreen(getMainScreen());
     createWifiErrorScreen(getMainScreen());
     createBootScreen(getMainScreen());
+    createLoadingScreen(getMainScreen());
 }
