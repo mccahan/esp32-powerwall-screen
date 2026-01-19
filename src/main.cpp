@@ -250,8 +250,8 @@ void loop() {
     }
 
     // Check for data timeout (show loading screen if no data for >60 seconds)
-    // Only check if we're not showing boot screen, wifi error, or config screens
-    if (!isBootScreenVisible() && !isWifiErrorScreenVisible() && !isInfoScreenVisible()) {
+    // Only check if we're not showing boot screen, wifi error, info, or MQTT config screens
+    if (!isBootScreenVisible() && !isWifiErrorScreenVisible() && !isInfoScreenVisible() && !isMqttConfigScreenVisible()) {
         const unsigned long DATA_TIMEOUT_MS = 60000;  // 60 seconds
         if (last_data_ms > 0 && (now - last_data_ms > DATA_TIMEOUT_MS)) {
             if (!isLoadingScreenVisible()) {
