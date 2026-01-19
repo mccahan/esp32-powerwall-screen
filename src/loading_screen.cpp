@@ -7,6 +7,7 @@
 // Theme colors
 #define COLOR_BG        0x0A0C10
 #define COLOR_WHITE     0xFFFFFF
+#define COLOR_GRAY      0x4A4A4A
 
 // UI elements - Loading screen overlay
 static lv_obj_t *loading_screen = nullptr;
@@ -30,7 +31,7 @@ void createLoadingScreen(lv_obj_t* parent) {
     lv_obj_set_size(loading_spinner, 80, 80);
     lv_obj_center(loading_spinner);
     lv_obj_set_style_arc_color(loading_spinner, lv_color_hex(COLOR_WHITE), LV_PART_MAIN);
-    lv_obj_set_style_arc_color(loading_spinner, lv_color_hex(0x4A4A4A), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(loading_spinner, lv_color_hex(COLOR_GRAY), LV_PART_INDICATOR);
 
     // Create label below spinner
     loading_label = lv_label_create(loading_screen);

@@ -55,6 +55,9 @@ Arduino_ST7701_RGBPanel *gfx = new Arduino_ST7701_RGBPanel(
 #define TFT_WIDTH 480
 #define TFT_HEIGHT 480
 
+// Data timeout configuration
+#define DATA_TIMEOUT_MS 60000  // 60 seconds - show loading screen if no data received
+
 // LVGL display buffers (double buffered)
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t *disp_draw_buf1;
@@ -252,7 +255,6 @@ void loop() {
     // Check for data timeout (show loading screen if no data for >60 seconds)
     // Only check if we're not showing boot screen, wifi error, info, or MQTT config screens
     if (!isBootScreenVisible() && !isWifiErrorScreenVisible() && !isInfoScreenVisible() && !isMqttConfigScreenVisible()) {
-        const unsigned long DATA_TIMEOUT_MS = 60000;  // 60 seconds
         if (last_data_ms > 0 && (now - last_data_ms > DATA_TIMEOUT_MS)) {
             if (!isLoadingScreenVisible()) {
                 showLoadingScreen();
